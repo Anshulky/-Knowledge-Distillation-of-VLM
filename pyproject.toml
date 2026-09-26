@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 ie643-preprocess = "ie643.preprocess.cli:main"
+ie643-pack = "ie643.pack.cli:main"
 ie643-teacher = "ie643.teacher.cli:main"
 ie643-review = "ie643.review.cli:main"
 ie643-splits = "ie643.splits.cli:main"

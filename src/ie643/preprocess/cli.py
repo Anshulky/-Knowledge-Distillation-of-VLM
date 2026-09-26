@@ -9,7 +9,9 @@ from ie643.preprocess.pipeline import REGISTRY, run
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Standardize receipt/invoice images for Qwen distillation")
+    parser = argparse.ArgumentParser(
+        description="Legacy publisher-iterator preprocess. For frozen splits use: python -m ie643.pack --split test"
+    )
     parser.add_argument(
         "--datasets",
         default="all",
@@ -18,7 +20,7 @@ def main() -> None:
     parser.add_argument("--split", default="auto", help="train/val/test, or auto (per-dataset default)")
     parser.add_argument("--limit", type=int, default=None, help="max samples per dataset")
     parser.add_argument("--seed", type=int, default=643)
-    parser.add_argument("--out", type=Path, default=Path("Data/processed/teacher100"))
+    parser.add_argument("--out", type=Path, default=Path("Data/processed/legacy"))
     parser.add_argument("--data-root", type=Path, default=Path("/backup/Anshul/IE643/Data"))
     args = parser.parse_args()
     names = sorted(REGISTRY) if args.datasets == "all" else [n.strip() for n in args.datasets.split(",") if n.strip()]

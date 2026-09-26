@@ -91,7 +91,7 @@ class ReviewHandler(SimpleHTTPRequestHandler):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Review teacher JSON in the browser")
-    parser.add_argument("--root", type=Path, default=Path("Data/processed/teacher100"))
+    parser.add_argument("--root", type=Path, default=Path("Data/processed/test"))
     parser.add_argument("--review", type=Path, default=None)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)

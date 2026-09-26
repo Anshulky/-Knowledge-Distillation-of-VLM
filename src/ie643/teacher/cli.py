@@ -1,12 +1,13 @@
-"""Infer canonical JSON with Qwen3-VL-32B via vLLM.
+"""Extract canonical JSON with a vLLM OpenAI-compatible VL model.
 
-Start the server once GPUs are free:
+Serve teacher or student, then write predictions into a named field so the
+two runs never overwrite each other:
 
-  vllm serve Qwen/Qwen3-VL-32B-Instruct --tensor-parallel-size 2 --max-model-len 16384
+  python -m ie643.teacher --manifest Data/processed/test/manifest.jsonl \\
+      --model Qwen/Qwen3-VL-32B-Instruct --pred-key teacher_gt
 
-Then:
-
-  python -m ie643.teacher --manifest Data/processed/teacher100/manifest.jsonl
+  python -m ie643.teacher --manifest Data/processed/test/manifest.jsonl \\
+      --model Qwen/Qwen2.5-VL-3B-Instruct --pred-key student_pred
 """
 
 from __future__ import annotations
@@ -31,23 +32,45 @@ def load_jsonl(path: Path) -> list[dict]:
     return rows
 
 
-def infer_record(client: VLLMClient, rec: dict, root: Path, *, max_tokens: int) -> dict:
+def pred_keys(pred_key: str) -> tuple[str, str, str, str]:
+    """pred, raw, error, status for teacher_gt / student_pred / custom keys."""
+    if pred_key.endswith("_gt"):
+        stem = pred_key[: -len("_gt")]
+    elif pred_key.endswith("_pred"):
+        stem = pred_key[: -len("_pred")]
+    else:
+        stem = pred_key
+    status = stem if stem in {"teacher", "student"} else "extracted"
+    return pred_key, f"{stem}_raw", f"{stem}_error", status
+
+
+def infer_record(
+    client: VLLMClient,
+    rec: dict,
+    root: Path,
+    *,
+    max_tokens: int,
+    pred_key: str,
+    raw_key: str,
+    error_key: str,
+    status: str,
+) -> dict:
     image = root / rec["image"]
     prompt = teacher_prompt(rec.get("doc_type_hint"), rec.get("language_hint"))
     rec["teacher_prompt"] = prompt
     raw = client.extract(image, prompt, max_tokens=max_tokens)
-    rec["teacher_raw"] = raw
-    rec["teacher_gt"] = parse_teacher_output(raw, fallback=rec.get("source_gt"))
-    rec["status"] = "teacher"
-    rec["teacher_error"] = None
+    rec[raw_key] = raw
+    rec[pred_key] = parse_teacher_output(raw, fallback=None)
+    rec[error_key] = None
+    rec["status"] = status
     return rec
 
 
-def dummy_record(rec: dict) -> dict:
-    rec["teacher_gt"] = coerce_canonical(rec.get("source_gt") or {})
-    rec["teacher_raw"] = None
-    rec["status"] = "teacher_dummy"
-    rec["teacher_error"] = None
+def dummy_record(rec: dict, *, pred_key: str, raw_key: str, error_key: str, status: str) -> dict:
+    rec[pred_key] = coerce_canonical(rec.get("source_gt") or {})
+    rec[raw_key] = None
+    rec[error_key] = None
+    rec["status"] = f"{status}_dummy"
     return rec
 
 
@@ -87,7 +110,7 @@ def compare_penalty(client: VLLMClient, rows: list[dict], root: Path, *, n: int,
                 teacher_prompt(rec.get("doc_type_hint"), rec.get("language_hint")),
                 max_tokens=max_tokens,
             )
-            penalized = parse_teacher_output(raw, fallback=rec.get("source_gt"))
+            penalized = parse_teacher_output(raw, fallback=None)
             err = None
         except Exception as exc:  # noqa: BLE001
             penalized = None
@@ -111,14 +134,16 @@ def compare_penalty(client: VLLMClient, rows: list[dict], root: Path, *, n: int,
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Qwen3-VL-32B teacher extraction")
-    parser.add_argument("--manifest", type=Path, default=Path("Data/processed/teacher100/manifest.jsonl"))
+    parser = argparse.ArgumentParser(description="vLLM extraction into a named prediction field")
+    parser.add_argument("--manifest", type=Path, default=Path("Data/processed/test/manifest.jsonl"))
     parser.add_argument("--base-url", default="http://127.0.0.1:8000/v1")
     parser.add_argument("--model", default="Qwen/Qwen3-VL-32B-Instruct")
     parser.add_argument("--backend", choices=("vllm", "dummy"), default="vllm")
+    parser.add_argument("--pred-key", default="teacher_gt", help="JSON field to write (teacher_gt or student_pred)")
+    parser.add_argument("--raw-key", default="", help="override raw-text field; default derived from --pred-key")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--overwrite", action="store_true")
-    parser.add_argument("--errors-only", action="store_true", help="retry rows with status teacher_error")
+    parser.add_argument("--errors-only", action="store_true", help="retry rows whose error field is set")
     parser.add_argument("--uids", default="", help="comma-separated uids to run")
     parser.add_argument("--compare", type=int, default=0, help="re-infer N successful rows and diff vs stored teacher_gt")
     parser.add_argument("--repetition-penalty", type=float, default=1.15)
@@ -126,6 +151,10 @@ def main() -> None:
     parser.add_argument("--max-tokens", type=int, default=4096)
     parser.add_argument("--timeout", type=int, default=180)
     args = parser.parse_args()
+
+    pred_key, raw_key, error_key, status = pred_keys(args.pred_key)
+    if args.raw_key:
+        raw_key = args.raw_key
 
     root = args.manifest.parent
     rows = load_jsonl(args.manifest)
@@ -149,21 +178,32 @@ def main() -> None:
     for rec in rows:
         if uids and rec.get("uid") not in uids:
             continue
-        if args.errors_only and rec.get("status") != "teacher_error":
-            continue
+        if args.errors_only:
+            failed = bool(rec.get(error_key)) or str(rec.get("status") or "").endswith("_error")
+            if not failed:
+                continue
         if args.limit is not None and done >= args.limit:
             break
-        if rec.get("teacher_gt") and not args.overwrite and not args.errors_only:
+        if rec.get(pred_key) and not args.overwrite and not args.errors_only:
             continue
         try:
             if args.backend == "dummy":
-                dummy_record(rec)
+                dummy_record(rec, pred_key=pred_key, raw_key=raw_key, error_key=error_key, status=status)
             else:
-                infer_record(client, rec, root, max_tokens=args.max_tokens)
+                infer_record(
+                    client,
+                    rec,
+                    root,
+                    max_tokens=args.max_tokens,
+                    pred_key=pred_key,
+                    raw_key=raw_key,
+                    error_key=error_key,
+                    status=status,
+                )
         except Exception as exc:  # noqa: BLE001 — resume the rest of the manifest
-            rec["status"] = "teacher_error"
-            rec["teacher_error"] = str(exc)
-            rec["teacher_gt"] = None
+            rec["status"] = f"{status}_error"
+            rec[error_key] = str(exc)
+            rec[pred_key] = None
             errors += 1
         done += 1
         if done % 10 == 0:
@@ -182,13 +222,13 @@ def main() -> None:
         for rec in load_jsonl(review_path):
             fresh = lookup.get(rec["uid"], rec)
             rec = dict(rec)
-            rec["teacher_gt"] = fresh.get("teacher_gt")
-            rec["teacher_raw"] = fresh.get("teacher_raw")
+            rec[pred_key] = fresh.get(pred_key)
+            rec[raw_key] = fresh.get(raw_key)
             rec["status"] = fresh.get("status", rec.get("status"))
-            rec["teacher_error"] = fresh.get("teacher_error")
+            rec[error_key] = fresh.get(error_key)
             review.append(rec)
         write_jsonl(review_path, review)
-    print(f"teacher done n={done} errors={errors} -> {args.manifest}")
+    print(f"extract done n={done} errors={errors} pred_key={pred_key} -> {args.manifest}")
 
 
 if __name__ == "__main__":
