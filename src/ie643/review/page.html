@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>IE643 teacher review</title>
+  <style>
+    :root { font-family: ui-sans-serif, system-ui, sans-serif; color: #111; background: #f4f4f1; }
+    body { margin: 0; display: grid; grid-template-columns: 240px 1fr 420px; height: 100vh; }
+    aside { overflow: auto; background: #fff; border-right: 1px solid #ddd; }
+    aside h1 { font-size: 14px; margin: 12px 16px 8px; }
+    .item { padding: 8px 14px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 12px; }
+    .item.active { background: #e8f0ff; }
+    .item .uid { color: #555; word-break: break-all; }
+    main { overflow: auto; padding: 16px; background: #222; display: flex; align-items: flex-start; justify-content: center; }
+    main img { max-width: 100%; height: auto; background: #fff; }
+    section { overflow: auto; background: #fff; padding: 12px 16px 24px; }
+    textarea { width: 100%; height: 280px; font-family: ui-monospace, monospace; font-size: 12px; }
+    label { font-size: 12px; font-weight: 600; display: block; margin: 10px 0 4px; }
+    select, button, input[type=text] { font: inherit; }
+    .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    button { padding: 6px 10px; cursor: pointer; }
+    .ok { background: #1b7f3a; color: #fff; border: 0; }
+    .fix { background: #c45c00; color: #fff; border: 0; }
+    .bad { background: #a11; color: #fff; border: 0; }
+    pre { background: #f6f6f6; padding: 8px; font-size: 11px; overflow: auto; max-height: 220px; }
+    .meta { font-size: 12px; color: #444; }
+  </style>
+</head>
+<body>
+  <aside>
+    <h1>Review pack (<span id="count">0</span>)</h1>
+    <div id="list"></div>
+  </aside>
+  <main><img id="img" alt="receipt" /></main>
+  <section>
+    <div class="meta" id="meta"></div>
+    <label>Teacher / corrected JSON</label>
+    <textarea id="json"></textarea>
+    <label>Notes</label>
+    <input id="notes" type="text" style="width:100%" />
+    <div class="row">
+      <button class="ok" onclick="save('accepted')">Accept</button>
+      <button class="fix" onclick="save('corrected')">Save correction</button>
+      <button class="bad" onclick="save('rejected')">Reject</button>
+      <button onclick="prev()">Prev</button>
+      <button onclick="next()">Next</button>
+    </div>
+    <label>Dataset source_gt (partial, for comparison)</label>
+    <pre id="src"></pre>
+  </section>
+  <script>
+    let samples = [];
+    let idx = 0;
+    async function load() {
+      samples = await (await fetch("/api/samples")).json();
+      document.getElementById("count").textContent = samples.length;
+      renderList();
+      show(0);
+    }
+    function renderList() {
+      const el = document.getElementById("list");
+      el.innerHTML = samples.map((s, i) =>
+        `<div class="item ${i===idx?"active":""}" onclick="show(${i})">
+          <b>${s.dataset}</b> · ${s.review_status || "pending"}
+          <div class="uid">${s.uid}</div>
+        </div>`).join("");
+    }
+    function show(i) {
+      idx = i;
+      const s = samples[i];
+      document.getElementById("img").src = "/files/" + s.image;
+      document.getElementById("meta").textContent =
+        s.uid + " · " + (s.language_hint || "") + " · " + (s.doc_type_hint || "") + " · " + (s.status || "");
+      const payload = s.review_gt || s.teacher_gt || s.source_gt || {};
+      document.getElementById("json").value = JSON.stringify(payload, null, 2);
+      document.getElementById("notes").value = s.review_notes || "";
+      document.getElementById("src").textContent = JSON.stringify(s.source_gt || {}, null, 2);
+      renderList();
+    }
+    async function save(status) {
+      const s = samples[idx];
+      let parsed;
+      try { parsed = JSON.parse(document.getElementById("json").value); }
+      catch (e) { alert("JSON is not valid: " + e); return; }
+      const body = {
+        uid: s.uid,
+        review_status: status,
+        review_gt: parsed,
+        review_notes: document.getElementById("notes").value,
+      };
+      const updated = await (await fetch("/api/save", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)})).json();
+      samples[idx] = updated;
+      if (idx < samples.length - 1) show(idx + 1); else { renderList(); }
+    }
+    function next() { if (idx < samples.length - 1) show(idx + 1); }
+    function prev() { if (idx > 0) show(idx - 1); }
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return;
+      if (e.key === "ArrowRight") next();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "a") save("accepted");
+    });
+    load();
+  </script>
+</body>
+</html>

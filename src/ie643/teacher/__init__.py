@@ -1,0 +1,1 @@
+"""Teacher inference over frozen receipt images."""

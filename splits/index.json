@@ -1,0 +1,196 @@
+{
+  "version": "1.1",
+  "seed": 643,
+  "data_root": "/backup/Anshul/IE643/Data",
+  "protocol": {
+    "train_only_from_official_train": true,
+    "val_merged_into_test": true,
+    "never_put_test_images_in_train": true
+  },
+  "datasets": {
+    "sroie": {
+      "file": "sroie.json",
+      "counts": {
+        "train": 727,
+        "test": 347,
+        "total": 1074
+      },
+      "protocol": {
+        "seed": 643,
+        "official_splits_used": true,
+        "val_merged_into": null,
+        "subsample": null,
+        "skipped_train_images_without_json_gt": 8
+      },
+      "notes": [
+        "ICDAR-2019 SROIE task 3. Official train/test; no val split."
+      ],
+      "leakage_audit": {
+        "uid_overlap": 0,
+        "locator_overlap": 0,
+        "fingerprint_overlap": 0,
+        "train_from_nontrain_source": [],
+        "test_from_non_eval_source": [],
+        "duplicate_uids_train": 0,
+        "duplicate_uids_test": 0
+      }
+    },
+    "fatura2": {
+      "file": "fatura2.json",
+      "counts": {
+        "train": 7500,
+        "test": 2500,
+        "total": 10000
+      },
+      "protocol": {
+        "seed": 643,
+        "official_splits_used": true,
+        "val_merged_into": "test",
+        "subsample": null,
+        "csv": {
+          "train": "strat1_train.csv",
+          "val": "strat1_dev.csv",
+          "test": "strat1_test.csv"
+        }
+      },
+      "notes": [
+        "FATURA official strat1 split. Dev/val merged into test."
+      ],
+      "leakage_audit": {
+        "uid_overlap": 0,
+        "locator_overlap": 0,
+        "fingerprint_overlap": 0,
+        "train_from_nontrain_source": [],
+        "test_from_non_eval_source": [],
+        "duplicate_uids_train": 0,
+        "duplicate_uids_test": 0
+      }
+    },
+    "cord-v2": {
+      "file": "cord-v2.json",
+      "counts": {
+        "train": 800,
+        "test": 200,
+        "total": 1000
+      },
+      "protocol": {
+        "seed": 643,
+        "official_splits_used": true,
+        "val_merged_into": "test",
+        "subsample": null,
+        "note_ids": "CORD image_id is per-split (train 0-799, val/test 0-99). uids include source_split."
+      },
+      "notes": [
+        "CORD-v2 official HuggingFace split. Validation merged into test."
+      ],
+      "leakage_audit": {
+        "uid_overlap": 0,
+        "locator_overlap": 0,
+        "fingerprint_overlap": 0,
+        "train_from_nontrain_source": [],
+        "test_from_non_eval_source": [],
+        "duplicate_uids_train": 0,
+        "duplicate_uids_test": 0
+      }
+    },
+    "synthetic-receipts-ocr": {
+      "file": "synthetic-receipts-ocr.json",
+      "counts": {
+        "train": 7000,
+        "test": 798,
+        "total": 7798
+      },
+      "protocol": {
+        "seed": 643,
+        "official_splits_used": true,
+        "val_merged_into": "test",
+        "english_locales": [
+          "UK",
+          "US"
+        ],
+        "subsample": {
+          "train_requested": {
+            "IT": 3000,
+            "FR": 3000,
+            "EN": 1000
+          },
+          "test_requested": {
+            "IT": 600,
+            "FR": 600,
+            "EN": 200
+          },
+          "test_actual": {
+            "IT": 327,
+            "FR": 271,
+            "EN": 200
+          },
+          "available_train": {
+            "EN": 16437,
+            "IT": 4496,
+            "FR": 4503
+          },
+          "available_eval": {
+            "EN": 1101,
+            "FR": 271,
+            "IT": 327
+          }
+        }
+      },
+      "notes": [
+        "Official eval has 327 IT receipts; requested test 600. Using all eval rows instead of pulling from train.",
+        "Official eval has 271 FR receipts; requested test 600. Using all eval rows instead of pulling from train."
+      ],
+      "leakage_audit": {
+        "uid_overlap": 0,
+        "locator_overlap": 0,
+        "fingerprint_overlap": 0,
+        "train_from_nontrain_source": [],
+        "test_from_non_eval_source": [],
+        "duplicate_uids_train": 0,
+        "duplicate_uids_test": 0
+      }
+    },
+    "invoices-and-receipts-v2": {
+      "file": "invoices-and-receipts-v2.json",
+      "counts": {
+        "train": 2843,
+        "test": 395,
+        "total": 3238
+      },
+      "protocol": {
+        "seed": 643,
+        "official_splits_used": true,
+        "val_merged_into": "test",
+        "subsample": {
+          "overall_train_target": 20000,
+          "other_datasets_train": 16027,
+          "train_requested": 3973,
+          "train_actual": 2843,
+          "test_requested": 568,
+          "train_pool": 2843,
+          "test_pool": 395
+        }
+      },
+      "notes": [
+        "v2 native `id` is a per-file index, not a global receipt id. uids include source_split and row_index.",
+        "Target overall train is 20000; other datasets contribute 16027, so v2 target is 3973.",
+        "Official v2 train only has 2843 rows; using all of them (overall train becomes 18870, not 20000).",
+        "Requested 568 test rows (20% of v2 train), official valid∪test only has 395."
+      ],
+      "leakage_audit": {
+        "uid_overlap": 0,
+        "locator_overlap": 0,
+        "fingerprint_overlap": 0,
+        "train_from_nontrain_source": [],
+        "test_from_non_eval_source": [],
+        "duplicate_uids_train": 0,
+        "duplicate_uids_test": 0
+      }
+    }
+  },
+  "totals": {
+    "train": 18870,
+    "test": 4240,
+    "target_train": 20000
+  }
+}

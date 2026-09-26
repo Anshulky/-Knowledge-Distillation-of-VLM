@@ -1,0 +1,23 @@
+[project]
+name = "ie643"
+version = "0.1.0"
+description = "Receipt and bill OCR distillation (Qwen3-VL teacher, Qwen2.5-VL student)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.0",
+    "pillow>=11.0",
+    "pyarrow>=17.0",
+    "vllm>=0.5.0.post1",
+]
+
+[project.scripts]
+ie643-preprocess = "ie643.preprocess.cli:main"
+ie643-teacher = "ie643.teacher.cli:main"
+ie643-review = "ie643.review.cli:main"
+ie643-splits = "ie643.splits.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

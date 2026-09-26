@@ -1,0 +1,1 @@
+"""Human review UI for teacher-extracted receipt JSON."""
