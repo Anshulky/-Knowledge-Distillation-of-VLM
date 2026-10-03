@@ -176,7 +176,14 @@ python -m ie643.teacher \
   --pred-key student_pred \
   --repetition-penalty 1.15 \
   --max-tokens 4096
+
+# teacher vs source_gt (same command with --pred-key student_pred for the student)
+python -m ie643.eval \
+  --manifest Data/processed/test/manifest.jsonl \
+  --pred-key teacher_gt
 ```
+
+Only fields that `source_gt` filled are scored (SROIE-style). List rows match on name/label + amount; quantity, unit price, and tax rate count only when both sides filled them (`0.055` equals `5,5%`). Extra predicted lines with amount 0 are ignored. The `tax` scalar matches a VAT band or the sum of bands. `--strict` counts extras as false positives; `--count-missing` treats unlabeled rows as empty preds.
 
 ### 3. Train extract (distillation labels)
 
@@ -206,6 +213,33 @@ python -m ie643.review --root Data/processed/test
 # http://127.0.0.1:8765
 ```
 
+### 5. Attention rollout (which pixels each field came from)
+
+Decoder-level rollout over each model's **own stored output** (`teacher_raw` / `student_raw`). One teacher-forced forward pass in HF transformers (eager attention; vLLM cannot return attention), so stop vLLM first. The 32B teacher spreads over both GPUs.
+
+```bash
+U="cord::test:35,sroie::X51006620437"   # comma-separated test uids that have the raw key
+CUDA_VISIBLE_DEVICES=0 python -m ie643.rollout run --model Qwen/Qwen2.5-VL-3B-Instruct --raw-key student_raw --tag student --uids "$U"
+python -m ie643.rollout run --model Qwen/Qwen3-VL-32B-Instruct --raw-key teacher_raw --tag teacher --uids "$U"
+python -m ie643.rollout report            # -> Data/rollout/report/
+python -m ie643.rollout report --key rollout_full   # ablation: classic full-matrix rollout
+```
+
+- **Sinks are excluded** before rolling out. Everything before the first image token counts as a sink (`<|im_start|>`, Qwen2.5's system prompt): ~30–50% of raw attention goes there, and causal rollout otherwise collapses onto position 0. Image tokens with massive activations also count (`--sink-ratio 10` × the image-token median); Qwen3-VL has 1–4 of these per page, marked × in the figures.
+- **`rollout`** (main) propagates only through generated tokens and treats prompt/image positions as leaves. `rollout_full` is the classic N×N product; it collapses onto the earliest kept token and is only an ablation.
+- Per-field maps average the rollout rows that predicted that JSON value's tokens. Teacher (32 px tokens) and student (28 px) maps are compared after resampling to one grid.
+- Outputs: `docs/<uid>.png` (input | all values | vendor | date | total, ✓/✗ vs `source_gt`), `image_share.png`, `area50.png`, `layer_profile.png`, `field_metrics.csv`, `agreement.csv`, `summary.json`.
+
+## Student demo (Hugging Face Space)
+
+`space/` is a Gradio app: upload a receipt, get the shared JSON. It loads `Qwen/Qwen2.5-VL-3B-Instruct` unless `STUDENT_MODEL` is set, so the distilled checkpoint is a variable change, not a code change. Same prompt as the teacher (`ie643.schema.teacher_prompt`) when the Space is run from this repo.
+
+Needs a GPU Space (T4 or ZeroGPU). Do not point the Space at this whole repo's `requirements`; publish the `space/` folder as the Space root.
+
+```bash
+huggingface-cli upload <user>/ie643-student space . --repo-type space
+```
+
 ## Layout
 
 ```
@@ -215,7 +249,10 @@ src/ie643/
   pack/               # frozen train/test image packs from splits/
   splits/             # uid JSON builder
   teacher/            # vLLM OpenAI client + parse/repair
+  eval/               # teacher/student vs source_gt
+  rollout/            # decoder attention rollout + report figures
   review/             # HTML review UI
+space/                # Gradio demo for the student (HF Space)
 splits/               # team train/test JSON (this repo)
 Data/processed/test/  # packed test images + manifest
 Data/processed/train/ # packed train images + manifest

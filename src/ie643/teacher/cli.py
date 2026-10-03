@@ -158,6 +158,14 @@ def main() -> None:
 
     root = args.manifest.parent
     rows = load_jsonl(args.manifest)
+    pack_meta = root / "pack.json"
+    if pack_meta.exists():
+        expected = int(json.loads(pack_meta.read_text(encoding="utf-8"))["n"])
+        if len(rows) != expected:
+            raise SystemExit(
+                f"manifest has {len(rows)} rows but {pack_meta} says n={expected}. "
+                "Refuse to extract (would shrink shards). Restore the full pack first."
+            )
     uids = {u.strip() for u in args.uids.split(",") if u.strip()}
     client = None
     if args.backend != "dummy":
@@ -214,7 +222,11 @@ def main() -> None:
     for rec in rows:
         by_ds.setdefault(rec["dataset"], []).append(rec)
     for name, shard in by_ds.items():
-        write_jsonl(root / "manifests" / f"{name}.jsonl", shard)
+        path = root / "manifests" / f"{name}.jsonl"
+        merged = {r["uid"]: r for r in load_jsonl(path)} if path.exists() else {}
+        for rec in shard:
+            merged[rec["uid"]] = rec
+        write_jsonl(path, list(merged.values()))
     review_path = root / "review_100.jsonl"
     if review_path.exists():
         lookup = {r["uid"]: r for r in rows}

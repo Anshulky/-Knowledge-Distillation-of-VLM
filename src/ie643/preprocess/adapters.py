@@ -286,7 +286,15 @@ def from_synthetic(fields: str | dict[str, Any], full_text: str | None = None) -
         )
     out["taxes"] = taxes
     if taxes:
-        out["tax"] = taxes[0].get("amount")
+        total_tax = 0.0
+        n_amt = 0
+        for row in taxes:
+            try:
+                total_tax += float(row["amount"])
+                n_amt += 1
+            except (TypeError, ValueError, KeyError):
+                continue
+        out["tax"] = total_tax if n_amt else taxes[0].get("amount")
     out["total"] = payload.get("total")
     out["payment_method"] = _text(payload.get("payment"))
     items = []

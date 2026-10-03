@@ -8,23 +8,41 @@ from ie643.schema import coerce_canonical
 
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.I)
 _ZERO_PAD = re.compile(r'(:\s*"[^"\n]*?)0{12,}')
+_BOX_RUN = re.compile(r'(:\s*"[^"\n]*?)([ㅁ□■▪▫�])\2{7,}')
 
 
 def _repair_truncated_json(raw: str) -> str:
-    """Close a generation that ran away repeating zeros or hit max_tokens."""
+    """Close a generation that ran away repeating glyphs or hit max_tokens."""
     s = _ZERO_PAD.sub(r'\1"', raw)
-    if s.count('"') % 2 == 1:
-        s += '"'
-    # Drop a trailing incomplete key/value after the last comma or bracket.
+    s = _BOX_RUN.sub(r'\1\2\2\2"', s)
     s = s.rstrip()
-    if s.endswith(","):
+    if s.endswith("\\"):
         s = s[:-1]
-    opens_obj = s.count("{") - s.count("}")
-    opens_arr = s.count("[") - s.count("]")
-    if opens_arr > 0:
-        s += "]" * opens_arr
-    if opens_obj > 0:
-        s += "}" * opens_obj
+    stack: list[str] = []
+    in_str = False
+    escape = False
+    for ch in s:
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            stack.append("}")
+        elif ch == "[":
+            stack.append("]")
+        elif stack and ch == stack[-1]:
+            stack.pop()
+    if in_str:
+        s += '"'
+    if s.rstrip().endswith(","):
+        s = s.rstrip()[:-1]
+    s += "".join(reversed(stack))
     return s
 
 
