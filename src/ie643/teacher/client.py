@@ -35,6 +35,16 @@ class VLLMClient:
         self.frequency_penalty = frequency_penalty
 
     def extract(self, image_path: Path, prompt: str, *, max_tokens: int = 4096) -> str:
+        return self.extract_full(image_path, prompt, max_tokens=max_tokens)["content"]
+
+    def extract_full(
+        self, image_path: Path, prompt: str, *, max_tokens: int = 4096, logprobs: int = 0
+    ) -> dict[str, Any]:
+        """content, finish_reason, usage and (if ``logprobs`` > 0) per-token top-k logprobs.
+
+        Logprobs are whatever the server's ``--logprobs-mode`` returns; serve with
+        ``raw_logprobs`` (vLLM default) to get the model's distribution before penalties.
+        """
         body: dict[str, Any] = {
             "model": self.model,
             "temperature": 0.0,
@@ -57,6 +67,8 @@ class VLLMClient:
                 }
             ],
         }
+        if logprobs:
+            body.update({"logprobs": True, "top_logprobs": logprobs, "return_tokens_as_token_ids": True})
         req = urllib.request.Request(
             self.base_url + "/chat/completions",
             data=json.dumps(body).encode("utf-8"),
@@ -69,6 +81,19 @@ class VLLMClient:
         except urllib.error.URLError as exc:
             raise RuntimeError(f"vLLM request failed: {exc}") from exc
         try:
-            return payload["choices"][0]["message"]["content"]
+            choice = payload["choices"][0]
+            return {
+                "content": choice["message"]["content"],
+                "finish_reason": choice.get("finish_reason"),
+                "usage": payload.get("usage") or {},
+                "logprobs": (choice.get("logprobs") or {}).get("content") if logprobs else None,
+            }
         except (KeyError, IndexError, TypeError) as exc:
             raise RuntimeError(f"unexpected vLLM payload: {payload!r}") from exc
+
+    def server_version(self) -> str | None:
+        try:
+            with urllib.request.urlopen(self.base_url.removesuffix("/v1") + "/version", timeout=10) as resp:
+                return json.loads(resp.read().decode("utf-8")).get("version")
+        except (urllib.error.URLError, ValueError):
+            return None

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ie643.splits.build import SEED, build_all
+from ie643.splits.build import SEED, apply_content_exclusions, build_all
 
 
 def main() -> None:
@@ -20,7 +20,19 @@ def main() -> None:
         default="all",
         help="comma-separated names, or all",
     )
+    parser.add_argument(
+        "--apply-exclusions",
+        action="store_true",
+        help="only drop train uids listed in <out>/content_duplicates.json from the existing JSONs",
+    )
     args = parser.parse_args()
+    if args.apply_exclusions:
+        index = apply_content_exclusions(args.out)
+        for name, info in index["datasets"].items():
+            print(f"  {name}: train={info['counts']['train']} "
+                  f"removed={info['leakage_audit']['content_duplicates_removed_from_train']}")
+        print(f"  TOTAL: train={index['totals']['train']} test={index['totals']['test']}")
+        return
     names = None
     if args.datasets != "all":
         names = [n.strip() for n in args.datasets.split(",") if n.strip()]

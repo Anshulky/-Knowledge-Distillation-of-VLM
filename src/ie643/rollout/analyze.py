@@ -188,8 +188,11 @@ def doc_figure(
         ax.set_xticks([]); ax.set_yticks([])
         for s in ax.spines.values():
             s.set_visible(False)
-    fig.suptitle(title, color=INK, fontsize=10, x=0.01, ha="left")
     fig.tight_layout()
+    # reserve a fixed band above the column headers so the title never overlaps them
+    top = 1 - 0.45 / fig.get_figheight()
+    fig.subplots_adjust(top=top)
+    fig.suptitle(title, color=INK, fontsize=10, x=0.01, y=1 - 0.12 / fig.get_figheight(), ha="left", va="top")
     fig.savefig(out, dpi=170)
     plt.close(fig)
 

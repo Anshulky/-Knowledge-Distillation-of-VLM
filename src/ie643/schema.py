@@ -160,14 +160,10 @@ Rules:
 - Output JSON only. No markdown, no comments."""
 
 
-def teacher_prompt(document_type_hint: str | None = None, language_hint: str | None = None) -> str:
-    extra = []
-    if document_type_hint:
-        extra.append(f"This image is likely a {document_type_hint}.")
-    if language_hint and language_hint not in {"unknown", None}:
-        extra.append(f"Printed language hint: {language_hint}.")
-    hint = (" " + " ".join(extra)) if extra else ""
-    return TEACHER_SYSTEM_PROMPT + hint
+def teacher_prompt() -> str:
+    """Instruction shared by teacher and student. Image + this text only: no dataset-derived hints
+    (document type / language came from the dataset name, which a deployed model never sees)."""
+    return TEACHER_SYSTEM_PROMPT
 
 
 def coerce_canonical(payload: dict[str, Any] | None, *, fallback: dict[str, Any] | None = None) -> dict[str, Any]:

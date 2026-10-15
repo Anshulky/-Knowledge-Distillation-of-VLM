@@ -1,0 +1,27 @@
+# E4a: CE + top-20 bucket KD. alpha 0.5, tau 1, forward KL, entropy weights.
+exp: e4
+variant: main
+student: Qwen/Qwen2.5-VL-3B-Instruct
+kd:
+  enabled: true
+  alpha: 0.5
+  tau: 1.0
+  div: fkl
+  skew: 0.1
+  weight: entropy
+rel:
+  enabled: false
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+optim:
+  lr: 1.0e-4
+  epochs: 2
+  micro_batch: 4
+  grad_accum: 8
+  seed: 643
+data:
+  dataset_weighting: true
+  weight_power: 0.5
+  max_length: 4096

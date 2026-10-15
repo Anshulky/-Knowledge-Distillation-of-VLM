@@ -1,0 +1,1249 @@
+{
+ "version": "1.0",
+ "method": {
+  "features": "grayscale, resized to 64x96 (W x H), per-image z-normalised",
+  "score": "Pearson correlation between test and train pixel vectors",
+  "threshold": 0.98,
+  "images": "packed images (Data/processed/{train,test}) i.e. after Qwen smart_resize",
+  "manual_review": "Data/dedup/pairs_corr098.pdf (difference maps)",
+  "fatura2": "excluded from this list: FATURA test/train share invoice templates by design (same layout, different text and totals), not duplicates"
+ },
+ "policy": "drop the TRAIN record of every pair; the frozen test set is unchanged",
+ "exclude_train_uids": [
+  "cord::train:107",
+  "cord::train:133",
+  "cord::train:15",
+  "cord::train:221",
+  "cord::train:234",
+  "cord::train:251",
+  "cord::train:283",
+  "cord::train:325",
+  "cord::train:353",
+  "cord::train:354",
+  "cord::train:420",
+  "cord::train:426",
+  "cord::train:428",
+  "cord::train:44",
+  "cord::train:483",
+  "cord::train:489",
+  "cord::train:56",
+  "cord::train:589",
+  "cord::train:6",
+  "cord::train:627",
+  "cord::train:648",
+  "cord::train:733",
+  "cord::train:765",
+  "cord::train:766",
+  "cord::train:785",
+  "cord::train:797",
+  "cord::train:84",
+  "sroie::X51005453729",
+  "sroie::X51005453729(1)",
+  "sroie::X51005568881",
+  "sroie::X51006008095",
+  "sroie::X51006328913",
+  "sroie::X51006329399",
+  "sroie::X51006329399(1)",
+  "sroie::X51006332575",
+  "sroie::X51006332575(1)",
+  "sroie::X51007135247",
+  "v2::train:102:805",
+  "v2::train:107:10",
+  "v2::train:114:818",
+  "v2::train:124:829",
+  "v2::train:130:836",
+  "v2::train:133:39",
+  "v2::train:134:840",
+  "v2::train:136:842",
+  "v2::train:1396:245",
+  "v2::train:139:845",
+  "v2::train:1444:299",
+  "v2::train:15:57",
+  "v2::train:15:857",
+  "v2::train:162:871",
+  "v2::train:174:884",
+  "v2::train:190:902",
+  "v2::train:216:931",
+  "v2::train:221:137",
+  "v2::train:234:151",
+  "v2::train:251:170",
+  "v2::train:251:970",
+  "v2::train:266:986",
+  "v2::train:283:205",
+  "v2::train:294:1017",
+  "v2::train:300:1025",
+  "v2::train:303:1028",
+  "v2::train:304:1029",
+  "v2::train:311:1037",
+  "v2::train:325:252",
+  "v2::train:333:1061",
+  "v2::train:34:1068",
+  "v2::train:353:1083",
+  "v2::train:353:283",
+  "v2::train:354:284",
+  "v2::train:362:1093",
+  "v2::train:364:1095",
+  "v2::train:373:1105",
+  "v2::train:376:1108",
+  "v2::train:391:1125",
+  "v2::train:401:1137",
+  "v2::train:410:1147",
+  "v2::train:420:358",
+  "v2::train:426:364",
+  "v2::train:428:366",
+  "v2::train:44:379",
+  "v2::train:483:427",
+  "v2::train:489:433",
+  "v2::train:48:1168",
+  "v2::train:50:1171",
+  "v2::train:56:512",
+  "v2::train:589:544",
+  "v2::train:627:587",
+  "v2::train:648:610",
+  "v2::train:6:556",
+  "v2::train:733:705",
+  "v2::train:765:740",
+  "v2::train:766:741",
+  "v2::train:76:1199",
+  "v2::train:785:762",
+  "v2::train:797:775",
+  "v2::train:84:783",
+  "v2::train:98:1223"
+ ],
+ "pairs": [
+  {
+   "train_uid": "cord::train:133",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:25",
+   "test_dataset": "cord-v2",
+   "corr": 0.9995
+  },
+  {
+   "train_uid": "v2::train:133:39",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:25",
+   "test_dataset": "cord-v2",
+   "corr": 0.9994
+  },
+  {
+   "train_uid": "cord::train:589",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:28",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:589:544",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:28",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:426",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:29",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:426:364",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:29",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:785",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:31",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:785:762",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:31",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:797",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:33",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:797:775",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:33",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:428",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:44",
+   "test_dataset": "cord-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "v2::train:428:366",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:44",
+   "test_dataset": "cord-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "cord::train:251",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:50",
+   "test_dataset": "cord-v2",
+   "corr": 0.9992
+  },
+  {
+   "train_uid": "v2::train:251:170",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:50",
+   "test_dataset": "cord-v2",
+   "corr": 0.999
+  },
+  {
+   "train_uid": "cord::train:648",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:67",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:648:610",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:67",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:766",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:69",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:766:741",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:69",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:44",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:75",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:44:379",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:75",
+   "test_dataset": "cord-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "cord::train:354",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:79",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:354:284",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:79",
+   "test_dataset": "cord-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "cord::train:765",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:80",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:765:740",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:80",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:107",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:86",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:107:10",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:86",
+   "test_dataset": "cord-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "cord::train:6",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::test:95",
+   "test_dataset": "cord-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "v2::train:6:556",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::test:95",
+   "test_dataset": "cord-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "cord::train:283",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:28",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:283:205",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:28",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:234",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:30",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:234:151",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:30",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:15",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:35",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:15:57",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:35",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:353",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:36",
+   "test_dataset": "cord-v2",
+   "corr": 0.9991
+  },
+  {
+   "train_uid": "v2::train:353:283",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:36",
+   "test_dataset": "cord-v2",
+   "corr": 0.9991
+  },
+  {
+   "train_uid": "cord::train:325",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:45",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:325:252",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:45",
+   "test_dataset": "cord-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "cord::train:84",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:53",
+   "test_dataset": "cord-v2",
+   "corr": 0.9997
+  },
+  {
+   "train_uid": "v2::train:84:783",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:53",
+   "test_dataset": "cord-v2",
+   "corr": 0.9996
+  },
+  {
+   "train_uid": "cord::train:221",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:6",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:221:137",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:6",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:56",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:65",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:56:512",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:65",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:489",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:67",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:489:433",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:67",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:733",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:89",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:733:705",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:89",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:627",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:96",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:627:587",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:96",
+   "test_dataset": "cord-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:483",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:97",
+   "test_dataset": "cord-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "v2::train:483:427",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:97",
+   "test_dataset": "cord-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "cord::train:420",
+   "train_dataset": "cord-v2",
+   "test_uid": "cord::val:98",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:420:358",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "cord::val:98",
+   "test_dataset": "cord-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:133:39",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:25:18",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9995
+  },
+  {
+   "train_uid": "cord::train:133",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:25:18",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9994
+  },
+  {
+   "train_uid": "v2::train:589:544",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:28:21",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:589",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:28:21",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:426:364",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:29:22",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:426",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:29:22",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:785:762",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:31:25",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:785",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:31:25",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:797:775",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:33:27",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:797",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:33:27",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:364:1095",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:425:100",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9838
+  },
+  {
+   "train_uid": "v2::train:139:845",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:425:100",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9823
+  },
+  {
+   "train_uid": "v2::train:410:1147",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:425:100",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9817
+  },
+  {
+   "train_uid": "v2::train:136:842",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:434:109",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9808
+  },
+  {
+   "train_uid": "v2::train:304:1029",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:436:111",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9857
+  },
+  {
+   "train_uid": "v2::train:50:1171",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:436:111",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9834
+  },
+  {
+   "train_uid": "v2::train:98:1223",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:439:114",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9836
+  },
+  {
+   "train_uid": "v2::train:333:1061",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:439:114",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9805
+  },
+  {
+   "train_uid": "v2::train:311:1037",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:439:114",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.98
+  },
+  {
+   "train_uid": "v2::train:391:1125",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:440:115",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9857
+  },
+  {
+   "train_uid": "v2::train:362:1093",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:440:115",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9811
+  },
+  {
+   "train_uid": "v2::train:134:840",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:440:115",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9806
+  },
+  {
+   "train_uid": "v2::train:373:1105",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:440:115",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9805
+  },
+  {
+   "train_uid": "v2::train:114:818",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:444:119",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9874
+  },
+  {
+   "train_uid": "v2::train:294:1017",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:444:119",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9818
+  },
+  {
+   "train_uid": "v2::train:130:836",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:444:119",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9813
+  },
+  {
+   "train_uid": "v2::train:174:884",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:444:119",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9803
+  },
+  {
+   "train_uid": "v2::train:428:366",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:44:39",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "cord::train:428",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:44:39",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "v2::train:251:170",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:50:46",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9992
+  },
+  {
+   "train_uid": "cord::train:251",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:50:46",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.999
+  },
+  {
+   "train_uid": "v2::train:648:610",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:67:64",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:648",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:67:64",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:766:741",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:69:66",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:766",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:69:66",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:44:379",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:75:73",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:44",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:75:73",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "v2::train:354:284",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:79:77",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:354",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:79:77",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "v2::train:765:740",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:80:79",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:765",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:80:79",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:1444:299",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:84:209",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:107:10",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:86:85",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:107",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:86:85",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "v2::train:6:556",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::test:95:95",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "cord::train:6",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::test:95:95",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "v2::train:1396:245",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:1:151",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9994
+  },
+  {
+   "train_uid": "v2::train:283:205",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:28:21",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:283",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:28:21",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:234:151",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:30:24",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:234",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:30:24",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:15:57",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:35:29",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:15",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:35:29",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "v2::train:353:283",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:36:30",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9991
+  },
+  {
+   "train_uid": "cord::train:353",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:36:30",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9991
+  },
+  {
+   "train_uid": "v2::train:190:902",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:454:103",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9872
+  },
+  {
+   "train_uid": "v2::train:98:1223",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:454:103",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9827
+  },
+  {
+   "train_uid": "v2::train:353:1083",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:454:103",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9818
+  },
+  {
+   "train_uid": "v2::train:311:1037",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:454:103",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9809
+  },
+  {
+   "train_uid": "v2::train:325:252",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:45:40",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:325",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:45:40",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "v2::train:34:1068",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:460:109",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9812
+  },
+  {
+   "train_uid": "v2::train:162:871",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:469:118",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9803
+  },
+  {
+   "train_uid": "v2::train:15:857",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:470:119",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.987
+  },
+  {
+   "train_uid": "v2::train:48:1168",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:470:119",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9821
+  },
+  {
+   "train_uid": "v2::train:300:1025",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:470:119",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9821
+  },
+  {
+   "train_uid": "v2::train:76:1199",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:475:124",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9833
+  },
+  {
+   "train_uid": "v2::train:376:1108",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:485:134",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9821
+  },
+  {
+   "train_uid": "v2::train:251:970",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:491:140",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9804
+  },
+  {
+   "train_uid": "v2::train:102:805",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:492:141",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9891
+  },
+  {
+   "train_uid": "v2::train:373:1105",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:492:141",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9836
+  },
+  {
+   "train_uid": "v2::train:266:986",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:492:141",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9834
+  },
+  {
+   "train_uid": "v2::train:134:840",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:492:141",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9831
+  },
+  {
+   "train_uid": "v2::train:401:1137",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:492:141",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9824
+  },
+  {
+   "train_uid": "v2::train:391:1125",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:492:141",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9819
+  },
+  {
+   "train_uid": "v2::train:216:931",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:492:141",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9813
+  },
+  {
+   "train_uid": "v2::train:303:1028",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:494:143",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9846
+  },
+  {
+   "train_uid": "v2::train:391:1125",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:494:143",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9824
+  },
+  {
+   "train_uid": "v2::train:401:1137",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:494:143",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9823
+  },
+  {
+   "train_uid": "v2::train:362:1093",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:494:143",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9811
+  },
+  {
+   "train_uid": "v2::train:102:805",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:494:143",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9811
+  },
+  {
+   "train_uid": "v2::train:124:829",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:498:147",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9817
+  },
+  {
+   "train_uid": "v2::train:84:783",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:53:49",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9997
+  },
+  {
+   "train_uid": "cord::train:84",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:53:49",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9996
+  },
+  {
+   "train_uid": "v2::train:56:512",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:65:62",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:56",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:65:62",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:489:433",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:67:64",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:489",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:67:64",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:221:137",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:6:56",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:221",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:6:56",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:733:705",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:89:88",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:733",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:89:88",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:627:587",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:96:96",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "cord::train:627",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:96:96",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9999
+  },
+  {
+   "train_uid": "v2::train:483:427",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:97:97",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "cord::train:483",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:97:97",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 0.9998
+  },
+  {
+   "train_uid": "v2::train:420:358",
+   "train_dataset": "invoices-and-receipts-v2",
+   "test_uid": "v2::val:98:98",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "cord::train:420",
+   "train_dataset": "cord-v2",
+   "test_uid": "v2::val:98:98",
+   "test_dataset": "invoices-and-receipts-v2",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "sroie::X51006329399(1)",
+   "train_dataset": "sroie",
+   "test_uid": "sroie::X51006328937",
+   "test_dataset": "sroie",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "sroie::X51006329399",
+   "train_dataset": "sroie",
+   "test_uid": "sroie::X51006328937",
+   "test_dataset": "sroie",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "sroie::X51006332575",
+   "train_dataset": "sroie",
+   "test_uid": "sroie::X51006328967",
+   "test_dataset": "sroie",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "sroie::X51006332575(1)",
+   "train_dataset": "sroie",
+   "test_uid": "sroie::X51006328967",
+   "test_dataset": "sroie",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "sroie::X51006328913",
+   "train_dataset": "sroie",
+   "test_uid": "sroie::X51006329388",
+   "test_dataset": "sroie",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "sroie::X51007135247",
+   "train_dataset": "sroie",
+   "test_uid": "sroie::X51006401853",
+   "test_dataset": "sroie",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "sroie::X51006008095",
+   "train_dataset": "sroie",
+   "test_uid": "sroie::X51009008095",
+   "test_dataset": "sroie",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "sroie::X51005453729",
+   "train_dataset": "sroie",
+   "test_uid": "sroie::X51009453729",
+   "test_dataset": "sroie",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "sroie::X51005453729(1)",
+   "train_dataset": "sroie",
+   "test_uid": "sroie::X51009453729",
+   "test_dataset": "sroie",
+   "corr": 1.0
+  },
+  {
+   "train_uid": "sroie::X51005568881",
+   "train_dataset": "sroie",
+   "test_uid": "sroie::X51009568881",
+   "test_dataset": "sroie",
+   "corr": 1.0
+  }
+ ]
+}

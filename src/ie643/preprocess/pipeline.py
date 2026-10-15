@@ -374,7 +374,7 @@ def process_sample(sample: Sample, out_dir: Path) -> dict[str, Any]:
         "teacher_gt": None,
         "review_status": "pending",
         "review_gt": None,
-        "teacher_prompt": teacher_prompt(sample.doc_type_hint, sample.language_hint),
+        "teacher_prompt": teacher_prompt(),
         "status": "preprocessed",
     }
     if source_qa is not None:

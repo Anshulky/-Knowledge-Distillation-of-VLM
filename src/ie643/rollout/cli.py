@@ -37,7 +37,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         print(f"skipping {len(uids) - len(todo)} uids without {args.raw_key}")
     out_dir = args.out / args.tag
     out_dir.mkdir(parents=True, exist_ok=True)
-    loaded = load_model(args.model)
+    loaded = load_model(args.model, adapter=args.adapter)
     print(f"{args.model}: {len(loaded.layers)} decoder layers")
     for rec in todo:
         path = out_dir / f"{safe_name(rec['uid'])}.npz"
@@ -69,7 +69,8 @@ def main() -> None:
         if name == "run":
             p.add_argument("--model", required=True)
             p.add_argument("--raw-key", required=True, help="teacher_raw or student_raw (the model's own output)")
-            p.add_argument("--tag", required=True, choices=("student", "teacher"))
+            p.add_argument("--tag", required=True, help="output subdirectory, e.g. student, teacher, e3")
+            p.add_argument("--adapter", default=None, help="PEFT adapter directory to load on --model")
             p.add_argument("--uids", required=True, help="comma-separated uids")
             p.add_argument("--alpha", type=float, default=0.5, help="attention weight vs residual identity")
             p.add_argument("--sink-ratio", type=float, default=10.0,

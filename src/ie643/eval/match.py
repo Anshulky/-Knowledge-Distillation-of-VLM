@@ -55,7 +55,7 @@ _LABEL = re.compile(
     re.I,
 )
 _CUR_SYM = re.compile(r"(?:rm|rp|usd|eur|gbp|myr|idr|inr|egp|rub|sgd|thb|vnd|¥|€|£|₹|₽|\$)", re.I)
-_NUM = re.compile(r"-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?|-?\d+(?:[.,]\d+)?")
+_NUM = re.compile(r"-?\d+(?:[.,]\d+)*")  # whole token incl. separators; "110000" is one number, not "110" + "000"
 _PHONE = re.compile(r"\d+")
 _ALNUM = re.compile(r"[^a-z0-9]+", re.I)
 _DATE_TOKEN = re.compile(
@@ -193,13 +193,16 @@ def unwrap(value: Any) -> Any:
 
 
 def _strip_labels(text: str) -> str:
-    s = _WS.sub(" ", text.replace("\n", " ").replace("\r", " ")).strip()
+    original = _WS.sub(" ", text.replace("\n", " ").replace("\r", " ")).strip()
+    s = original
     for _ in range(4):
         nxt = _LABEL.sub("", s, count=1).strip()
         if nxt == s:
             break
         s = nxt
-    return s
+    # a value that is only a label word ("GST", "VAT", "TAX" as a tax-row label) is the value itself;
+    # stripping it to "" made such rows unmatchable, even against an identical prediction
+    return s or original
 
 
 def normalize_text(value: Any) -> str:
@@ -244,17 +247,27 @@ def anls(pred: str, gold: str, *, threshold: float = ANLS_THRESHOLD) -> float:
 
 
 def _parse_numeric_token(token: str) -> float | None:
-    if token.count(",") == 1 and token.count(".") == 0:
-        left, right = token.split(",")
-        token = f"{left}.{right}" if len(right) in {1, 2, 3} and len(left) <= 3 else token.replace(",", "")
-    elif token.count(".") == 1 and token.count(",") == 0:
-        left, right = token.split(".")
-        if len(right) == 3 and len(left) <= 3:
-            token = left + right
-    else:
-        token = token.replace(",", "")
+    """One numeric token -> float, with one consistent separator rule.
+
+    Both "," and "." present: the later one is the decimal mark ("1.234,56" -> 1234.56, "1,234.56" -> 1234.56).
+    One separator followed by exactly 3 digits is a thousands separator ("54,000" == "54.000" == 54000),
+    except a leading zero ("0.055" stays 0.055). Repeated separators are thousands separators.
+    Otherwise the separator is the decimal mark ("48,88" -> 48.88).
+    """
+    t = token
+    if "," in t and "." in t:
+        t = t.replace(".", "").replace(",", ".") if t.rfind(",") > t.rfind(".") else t.replace(",", "")
+    elif t.count(",") > 1 or t.count(".") > 1:
+        t = t.replace(",", "").replace(".", "")
+    elif t.count(",") == 1 or t.count(".") == 1:
+        sep = "," if "," in t else "."
+        left, right = t.split(sep)
+        if len(right) == 3 and left.lstrip("-") not in ("", "0"):
+            t = left + right
+        else:
+            t = f"{left}.{right}"
     try:
-        return float(token)
+        return float(t)
     except ValueError:
         return None
 
@@ -282,6 +295,19 @@ def numbers_match(a: Any, b: Any, *, rel: float = 0.01, abs_tol: float = 0.02) -
         return True
     scale = max(abs(na), abs(nb), 1.0)
     return abs(na - nb) <= max(abs_tol, rel * scale)
+
+
+# Money is compared to the cent: a 1% relative tolerance accepted misread digits in large totals.
+AMOUNT_ABS_TOL = 0.01
+
+
+def amounts_match(a: Any, b: Any) -> bool:
+    """Numeric equality to the cent when both sides contain a number; string match only when one side has none
+    (e.g. "FREE"). A fuzzy string fallback on numbers accepted "17,121" for "17,727" (ANLS >= 0.5)."""
+    na, nb = parse_number(a), parse_number(b)
+    if na is not None and nb is not None:
+        return abs(na - nb) <= AMOUNT_ABS_TOL
+    return strings_match(a, b)
 
 
 def rates_match(a: Any, b: Any) -> bool:
@@ -472,8 +498,13 @@ def values_match(field: str, pred: Any, gold: Any) -> bool:
         if na is None or nb is None:
             return False
         return numbers_match(na, nb)
+    if field == "discount":
+        # sign convention varies ("(-) 6.11", "- 6.11", "6.11"); the printed amount is what is extracted
+        na, nb = parse_number(pred), parse_number(gold)
+        if na is not None and nb is not None:
+            return abs(abs(na) - abs(nb)) <= AMOUNT_ABS_TOL
     if field in AMOUNT_FIELDS:
-        return numbers_match(pred, gold) or strings_match(pred, gold)
+        return amounts_match(pred, gold)
     if field in LIST_FIELDS:
         tp, fp, fn = list_prf(
             field,
@@ -527,7 +558,7 @@ def _row_match(keys: tuple[str, ...], pred: dict, gold: dict) -> bool:
     if not is_empty(gold.get("amount")):
         if not _row_amount_filled(pred.get("amount")):
             return False
-        if not (numbers_match(pred.get("amount"), gold.get("amount")) or strings_match(pred.get("amount"), gold.get("amount"))):
+        if not amounts_match(pred.get("amount"), gold.get("amount")):
             return False
     for key in keys:
         if key in {"name", "label", "amount"}:

@@ -129,6 +129,29 @@ def _pack(
     }
 
 
+CONTENT_DUPLICATES = "content_duplicates.json"
+
+
+def load_content_exclusions(out_dir: Path) -> set[str]:
+    """Train uids whose pixels duplicate a test image (see splits/content_duplicates.json)."""
+    path = out_dir / CONTENT_DUPLICATES
+    if not path.exists():
+        return set()
+    return set(json.loads(path.read_text(encoding="utf-8"))["exclude_train_uids"])
+
+
+def drop_content_duplicates(payload: dict[str, Any], excluded: set[str]) -> dict[str, Any]:
+    """Remove train records that duplicate a test image by content. Test is never touched."""
+    keep = [r for r in payload["train"] if r["uid"] not in excluded]
+    removed = len(payload["train"]) - len(keep)
+    payload["train"] = keep
+    payload["counts"] = {"train": len(keep), "test": len(payload["test"]), "total": len(keep) + len(payload["test"])}
+    audit = payload["leakage_audit"]
+    audit["content_duplicates_removed_from_train"] = audit.get("content_duplicates_removed_from_train", 0) + removed
+    payload["leakage_audit"]["content_overlap"] = len(excluded & {r["uid"] for r in keep})
+    return payload
+
+
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
@@ -510,6 +533,31 @@ BUILDERS = {
 }
 
 
+def _index_entry(fname: str, payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "file": fname,
+        "counts": payload["counts"],
+        "protocol": payload["protocol"],
+        "notes": payload["notes"],
+        "leakage_audit": payload["leakage_audit"],
+    }
+
+
+def apply_content_exclusions(out_dir: Path) -> dict[str, Any]:
+    """Drop content-duplicate train uids from already-built split JSONs without rebuilding."""
+    out_dir = out_dir.resolve()
+    excluded = load_content_exclusions(out_dir)
+    index = json.loads((out_dir / "index.json").read_text(encoding="utf-8"))
+    for name, info in index["datasets"].items():
+        payload = drop_content_duplicates(load_dataset_json(out_dir / info["file"]), excluded)
+        _write_json(out_dir / info["file"], payload)
+        index["datasets"][name] = _index_entry(info["file"], payload)
+    index["totals"]["train"] = sum(d["counts"]["train"] for d in index["datasets"].values())
+    index["totals"]["test"] = sum(d["counts"]["test"] for d in index["datasets"].values())
+    (out_dir / "index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2) + "\n")
+    return index
+
+
 def build_all(
     data_root: Path,
     out_dir: Path,
@@ -535,19 +583,14 @@ def build_all(
         },
         "datasets": {},
     }
+    excluded = load_content_exclusions(out_dir)
     for name in names:
         rng = random.Random(seed)
         print(f"building {name} ...")
-        payload = BUILDERS[name](data_root, rng, seed)
+        payload = drop_content_duplicates(BUILDERS[name](data_root, rng, seed), excluded)
         fname = f"{name}.json"
         _write_json(out_dir / fname, payload)
-        index["datasets"][name] = {
-            "file": fname,
-            "counts": payload["counts"],
-            "protocol": payload["protocol"],
-            "notes": payload["notes"],
-            "leakage_audit": payload["leakage_audit"],
-        }
+        index["datasets"][name] = _index_entry(fname, payload)
         print(f"  {name}: train={payload['counts']['train']} test={payload['counts']['test']}")
     index["totals"] = {
         "train": sum(d["counts"]["train"] for d in index["datasets"].values()),

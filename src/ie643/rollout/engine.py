@@ -53,7 +53,7 @@ class Loaded:
     layers: list[torch.nn.Module]
 
 
-def load_model(model_id: str, *, device_map: str = "auto") -> Loaded:
+def load_model(model_id: str, *, device_map: str = "auto", adapter: str | None = None) -> Loaded:
     from transformers import AutoModelForImageTextToText, AutoProcessor
 
     model = AutoModelForImageTextToText.from_pretrained(
@@ -62,6 +62,10 @@ def load_model(model_id: str, *, device_map: str = "auto") -> Loaded:
         device_map=device_map,
         attn_implementation="eager",  # sdpa / flash do not return weights
     )
+    if adapter:
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(model, adapter)
     model.eval()
     processor = AutoProcessor.from_pretrained(model_id)
     # Qwen2_5_VLDecoderLayer / Qwen3VLTextDecoderLayer; vision blocks are *VisionBlock
@@ -169,7 +173,12 @@ def rollout_record(
     sink_ratio: float = 10.0,
     full: bool = True,
 ) -> dict[str, Any]:
-    prompt = rec.get("teacher_prompt") or teacher_prompt(rec.get("doc_type_hint"), rec.get("language_hint"))
+    # the prompt the output was generated with: "<stem>_prompt" (student_e3_raw -> student_e3_prompt). Only the two
+    # legacy hinted runs (teacher_raw / student_raw) fall back to the stored hinted teacher_prompt; anything else
+    # without its own prompt field (e.g. teacher_nohint_raw) was generated with the current hint-free prompt.
+    stem = raw_key[: -len("_raw")] if raw_key.endswith("_raw") else raw_key
+    legacy = rec.get("teacher_prompt") if stem in ("teacher", "student") else None
+    prompt = rec.get(f"{stem}_prompt") or legacy or teacher_prompt()
     raw = rec[raw_key]
     inputs, offsets, n_prompt = build_inputs(loaded, root / rec["image"], prompt, raw)
     ids = inputs["input_ids"][0]

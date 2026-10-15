@@ -1,0 +1,9 @@
+# Pinned to the versions the adapter was trained and evaluated with.
+torch
+torchvision  # Qwen2-VL processor builds a video processor that requires it
+transformers==5.17.0
+peft==0.21.2
+accelerate>=1.10
+pillow>=11.0
+numpy>=2.0
+spaces

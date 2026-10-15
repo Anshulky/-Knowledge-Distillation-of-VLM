@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 from ie643.eval.match import EXTRACTION_FIELDS, META_FIELDS
-from ie643.eval.score import evaluate, format_report
+from ie643.eval.score import coverage, evaluate, format_coverage, format_report
 from ie643.schema import FIELD_ORDER
 
 
@@ -45,6 +45,14 @@ def main() -> None:
         action="store_true",
         help="rows without --pred-key count as empty predictions (FN on every GT field)",
     )
+    parser.add_argument(
+        "--raw-gt",
+        action="store_true",
+        help="score against source_gt as published (no artifact cleaning; see ie643.eval.gt_clean)",
+    )
+    parser.add_argument("--coverage", action="store_true", help="also report fields filled per document")
+    parser.add_argument("--ref-manifest", type=Path, default=None, help="manifest holding a reference model (coverage)")
+    parser.add_argument("--ref-key", default="teacher_gt", help="reference prediction key in --ref-manifest")
     parser.add_argument("--out", type=Path, default=None, help="write JSON report (mismatches included)")
     parser.add_argument("--errors", type=int, default=0, help="print this many field mismatches")
     args = parser.parse_args()
@@ -67,8 +75,15 @@ def main() -> None:
         strict=args.strict,
         count_missing=args.count_missing,
         datasets=names,
+        clean_gt=not args.raw_gt,
     )
     print(format_report(report, max_errors=args.errors))
+    if args.coverage or args.ref_manifest:
+        ref = {r["uid"]: r for r in load_jsonl(args.ref_manifest)} if args.ref_manifest else None
+        cov = coverage(rows, pred_key=args.pred_key, gt_key=args.gt_key, fields=fields, ref=ref,
+                       ref_key=args.ref_key, clean_gt=not args.raw_gt, datasets=names)
+        print(format_coverage(cov))
+        report["coverage"] = cov
     if args.out:
         payload = dict(report)
         args.out.parent.mkdir(parents=True, exist_ok=True)

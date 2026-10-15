@@ -11,9 +11,9 @@
     "sroie": {
       "file": "sroie.json",
       "counts": {
-        "train": 727,
+        "train": 717,
         "test": 347,
-        "total": 1074
+        "total": 1064
       },
       "protocol": {
         "seed": 643,
@@ -32,7 +32,9 @@
         "train_from_nontrain_source": [],
         "test_from_non_eval_source": [],
         "duplicate_uids_train": 0,
-        "duplicate_uids_test": 0
+        "duplicate_uids_test": 0,
+        "content_duplicates_removed_from_train": 10,
+        "content_overlap": 0
       }
     },
     "fatura2": {
@@ -63,15 +65,17 @@
         "train_from_nontrain_source": [],
         "test_from_non_eval_source": [],
         "duplicate_uids_train": 0,
-        "duplicate_uids_test": 0
+        "duplicate_uids_test": 0,
+        "content_duplicates_removed_from_train": 0,
+        "content_overlap": 0
       }
     },
     "cord-v2": {
       "file": "cord-v2.json",
       "counts": {
-        "train": 800,
+        "train": 773,
         "test": 200,
-        "total": 1000
+        "total": 973
       },
       "protocol": {
         "seed": 643,
@@ -90,7 +94,9 @@
         "train_from_nontrain_source": [],
         "test_from_non_eval_source": [],
         "duplicate_uids_train": 0,
-        "duplicate_uids_test": 0
+        "duplicate_uids_test": 0,
+        "content_duplicates_removed_from_train": 27,
+        "content_overlap": 0
       }
     },
     "synthetic-receipts-ocr": {
@@ -147,15 +153,17 @@
         "train_from_nontrain_source": [],
         "test_from_non_eval_source": [],
         "duplicate_uids_train": 0,
-        "duplicate_uids_test": 0
+        "duplicate_uids_test": 0,
+        "content_duplicates_removed_from_train": 0,
+        "content_overlap": 0
       }
     },
     "invoices-and-receipts-v2": {
       "file": "invoices-and-receipts-v2.json",
       "counts": {
-        "train": 2843,
+        "train": 2781,
         "test": 395,
-        "total": 3238
+        "total": 3176
       },
       "protocol": {
         "seed": 643,
@@ -184,12 +192,14 @@
         "train_from_nontrain_source": [],
         "test_from_non_eval_source": [],
         "duplicate_uids_train": 0,
-        "duplicate_uids_test": 0
+        "duplicate_uids_test": 0,
+        "content_duplicates_removed_from_train": 62,
+        "content_overlap": 0
       }
     }
   },
   "totals": {
-    "train": 18870,
+    "train": 18771,
     "test": 4240,
     "target_train": 20000
   }

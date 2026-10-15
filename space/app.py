@@ -1,9 +1,10 @@
-"""Gradio demo: upload a receipt, show the Qwen student extraction.
+"""Gradio demo: upload a receipt or invoice, get the IE643 extraction JSON from the distilled 3B student.
 
-The checkpoint is STUDENT_MODEL. Point that at the distilled model when it is
-on the Hub; the prompt and parser stay the same.
+Model = BASE_MODEL + the LoRA adapter ADAPTER (KD w=none headline by default), merged once at start-up.
+The adapter repo is gated: the Space needs a read token with access in the HF_TOKEN secret.
 
-  STUDENT_MODEL=Qwen/Qwen2.5-VL-3B-Instruct python app.py
+  python space/sync_vendor.py           # once, from the training repo
+  HF_TOKEN=... python space/app.py      # local run
 """
 
 from __future__ import annotations
@@ -11,24 +12,28 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
 import gradio as gr
 import torch
+from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from extract import parse_output, teacher_prompt
-from PIL import Image
-from transformers import AutoModelForImageTextToText, AutoProcessor
+from extract import parse_output, prepare_image, teacher_prompt  # noqa: E402
 
-MODEL_ID = os.environ.get("STUDENT_MODEL", "Qwen/Qwen2.5-VL-3B-Instruct")
-MAX_PIXELS = int(os.environ.get("MAX_PIXELS", str(1280 * 28 * 28)))
+BASE_MODEL = os.environ.get("BASE_MODEL", "Qwen/Qwen2.5-VL-3B-Instruct")
+ADAPTER = os.environ.get("ADAPTER", "Anshulky/ie643-qwen2.5vl-3b-kd-wnone")
+MERGE = os.environ.get("MERGE_ADAPTER", "1") == "1"
 MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "2048"))
+REPETITION_PENALTY = float(os.environ.get("REPETITION_PENALTY", "1.15"))  # same as the test-set evaluation
+TOKEN = os.environ.get("HF_TOKEN")  # Space secret; needed because the adapter repo is gated
 
 SUMMARY_FIELDS = (
     ("Vendor", "vendor"),
     ("Address", "vendor_address"),
+    ("Phone", "vendor_phone"),
     ("Tax id", "vendor_tax_id"),
     ("Buyer", "buyer"),
     ("Date", "date"),
@@ -38,7 +43,9 @@ SUMMARY_FIELDS = (
     ("Invoice no.", "invoice_number"),
     ("Subtotal", "subtotal"),
     ("Tax", "tax"),
+    ("Discount", "discount"),
     ("Total", "total"),
+    ("Change", "change"),
     ("Payment", "payment_method"),
 )
 
@@ -46,39 +53,38 @@ _model = None
 _processor = None
 
 
-def _dtype_kw() -> dict[str, torch.dtype]:
-    import transformers
-
-    dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-    major = int(transformers.__version__.split(".", 1)[0])
-    key = "dtype" if major >= 5 else "torch_dtype"
-    return {key: dtype}
+def _dtype() -> torch.dtype:
+    if not torch.cuda.is_available():
+        return torch.float32
+    return torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16  # T4 has no bf16
 
 
 def get_model():
     global _model, _processor
     if _model is None:
-        kwargs = _dtype_kw()
+        from peft import PeftModel
+        from transformers import AutoModelForImageTextToText, AutoProcessor
+
+        if ADAPTER and not TOKEN and os.environ.get("SPACE_ID"):  # locally the cached `hf auth login` token is used
+            print(f"WARNING: HF_TOKEN is not set; the gated adapter {ADAPTER} will fail to download. "
+                  "Add a read token as the Space secret HF_TOKEN.", flush=True)
+        model = AutoModelForImageTextToText.from_pretrained(BASE_MODEL, dtype=_dtype(), token=TOKEN)
+        if ADAPTER:
+            # torch_device="cpu": PEFT would otherwise load the adapter tensors straight onto CUDA because
+            # torch.cuda.is_available() is True on ZeroGPU, but no real GPU exists at start-up
+            model = PeftModel.from_pretrained(model, ADAPTER, token=TOKEN, torch_device="cpu")
+            if MERGE:
+                model = model.merge_and_unload()  # plain model: no LoRA overhead per token
         if torch.cuda.is_available():
-            kwargs["device_map"] = "auto"
-        _model = AutoModelForImageTextToText.from_pretrained(MODEL_ID, **kwargs)
-        _model.eval()
-        _processor = AutoProcessor.from_pretrained(MODEL_ID)
-        image_processor = getattr(_processor, "image_processor", None)
-        size = getattr(image_processor, "size", None)
-        if isinstance(size, dict) and "longest_edge" in size:
-            size["longest_edge"] = MAX_PIXELS
+            model = model.to("cuda")  # ZeroGPU: allowed at import time; the GPU is attached per call
+        _model = model.eval()
+        _processor = AutoProcessor.from_pretrained(BASE_MODEL, token=TOKEN)
     return _model, _processor
 
 
-def _move(batch: dict[str, Any], device: torch.device) -> dict[str, Any]:
-    return {key: value.to(device) if torch.is_tensor(value) else value for key, value in batch.items()}
-
-
-def _summary(parsed: dict[str, Any]) -> str:
-    lines = [f"**Model:** `{MODEL_ID}`"]
-    doc = parsed.get("document_type")
-    lang = parsed.get("language")
+def _summary(parsed: dict[str, Any], info: str) -> str:
+    lines = [info]
+    doc, lang = parsed.get("document_type"), parsed.get("language")
     if doc or lang:
         lines.append(f"**Document:** {doc or '—'} · **Language:** {lang or '—'}")
     for label, key in SUMMARY_FIELDS:
@@ -91,115 +97,81 @@ def _summary(parsed: dict[str, Any]) -> str:
 def _items(parsed: dict[str, Any]) -> list[list[Any]]:
     rows = []
     for item in parsed.get("line_items") or []:
-        if not isinstance(item, dict):
-            continue
-        rows.append(
-            [
-                item.get("name") or "",
-                item.get("quantity") if item.get("quantity") is not None else "",
-                item.get("unit_price") if item.get("unit_price") is not None else "",
-                item.get("amount") if item.get("amount") is not None else "",
-            ]
-        )
+        if isinstance(item, dict):
+            rows.append([item.get(k) if item.get(k) is not None else "" for k in ("name", "quantity", "unit_price", "amount")])
     return rows
 
 
-def extract(image: Image.Image | None, document_type: str | None):
-    if image is None:
-        raise gr.Error("Upload a receipt or invoice image.")
-    hint = document_type or None
-    if hint == "auto":
-        hint = None
-    prompt = teacher_prompt(hint)
+def _generate(image: Image.Image) -> tuple[str, tuple[int, int], tuple[int, int], float, int]:
     model, processor = get_model()
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "image", "image": image.convert("RGB")},
-                {"type": "text", "text": prompt},
-            ],
-        }
-    ]
-    batch = processor.apply_chat_template(
-        messages,
-        tokenize=True,
-        add_generation_prompt=True,
-        return_dict=True,
-        return_tensors="pt",
-    )
+    seen, orig, size = prepare_image(image)
+    # identical to training (ie643.distill.data): student chat template, image first, then the hint-free prompt
+    messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": teacher_prompt()}]}]
+    chat = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    batch = processor(text=[chat], images=[seen], return_tensors="pt")
     device = next(model.parameters()).device
-    batch = _move(dict(batch), device)
+    batch = {k: v.to(device) if torch.is_tensor(v) else v for k, v in batch.items()}
+    t0 = time.time()
     with torch.inference_mode():
-        generated = model.generate(
-            **batch,
-            do_sample=False,
-            max_new_tokens=MAX_NEW_TOKENS,
-            repetition_penalty=1.15,
-        )
-    prompt_len = int(batch["input_ids"].shape[1])
-    text = processor.batch_decode(
-        generated[:, prompt_len:],
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False,
-    )[0]
-    try:
-        parsed = parse_output(text)
-    except (ValueError, json.JSONDecodeError) as exc:
-        return (
-            f"**Model:** `{MODEL_ID}`\n\nCould not parse JSON ({exc}). The raw text is below.",
-            "",
-            [],
-            text,
-        )
-    return (
-        _summary(parsed),
-        json.dumps(parsed, ensure_ascii=False, indent=2),
-        _items(parsed),
-        text,
-    )
+        out = model.generate(**batch, do_sample=False, max_new_tokens=MAX_NEW_TOKENS,
+                             repetition_penalty=REPETITION_PENALTY)
+    elapsed = time.time() - t0
+    new_tokens = out[:, batch["input_ids"].shape[1]:]
+    text = processor.batch_decode(new_tokens, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
+    return text, orig, size, elapsed, int(new_tokens.shape[1])
 
 
-try:
+try:  # ZeroGPU: borrow a GPU only while generating
     import spaces
 
-    extract = spaces.GPU(duration=180)(extract)
+    _generate = spaces.GPU(duration=120)(_generate)
 except ImportError:
     pass
+
+if os.environ.get("EAGER_LOAD", "1") == "1":
+    # Download + merge once at start-up, outside the GPU-timed call (first request would otherwise
+    # spend its ZeroGPU time budget on a 7.5 GB download and the merge).
+    get_model()
+
+
+def extract(image: Image.Image | None):
+    if image is None:
+        raise gr.Error("Upload a receipt or invoice image.")
+    text, orig, size, elapsed, n_tok = _generate(image)
+    info = (f"**Model:** `{ADAPTER or BASE_MODEL}` · image {orig[0]}×{orig[1]} → {size[0]}×{size[1]} px · "
+            f"{n_tok} tokens in {elapsed:.1f} s")
+    try:
+        parsed = parse_output(text)
+    except ValueError as exc:
+        return f"{info}\n\nCould not parse JSON ({exc}). The raw text is below.", "", [], text
+    return _summary(parsed, info), json.dumps(parsed, ensure_ascii=False, indent=2), _items(parsed), text
 
 
 def build() -> gr.Blocks:
     with gr.Blocks(title="IE643 receipt extractor") as demo:
         gr.Markdown(
-            f"""# Receipt and invoice extraction
-
-Upload a photo of a receipt or invoice. The student model reads it into the shared IE643 JSON schema.
-"""
+            "# Receipt and invoice extraction\n\n"
+            "A 3B Qwen2.5-VL student distilled from Qwen3-VL-32B (LoRA, top-20 logit KD) reads the image into the "
+            "IE643 JSON schema. Fields are filled only when printed. Research demo; outputs can be wrong."
         )
         with gr.Row():
             with gr.Column():
                 image = gr.Image(type="pil", label="Receipt or invoice", sources=["upload", "clipboard"])
-                document_type = gr.Dropdown(
-                    choices=["auto", "receipt", "invoice", "other"],
-                    value="auto",
-                    label="Document type hint",
-                )
                 button = gr.Button("Extract", variant="primary")
+                examples = sorted((Path(__file__).resolve().parent / "examples").glob("*"))
+                if examples:
+                    gr.Examples([[str(p)] for p in examples], inputs=[image])
             with gr.Column():
-                summary = gr.Markdown(label="Fields")
-                items = gr.Dataframe(
-                    headers=["name", "quantity", "unit_price", "amount"],
-                    datatype=["str", "str", "str", "str"],
-                    label="Line items",
-                    interactive=False,
-                )
+                summary = gr.Markdown()
+                items = gr.Dataframe(headers=["name", "quantity", "unit_price", "amount"],
+                                     datatype=["str"] * 4, label="Line items", interactive=False)
         with gr.Accordion("JSON", open=True):
             payload = gr.Code(language="json", label="Canonical JSON")
         with gr.Accordion("Raw model text", open=False):
             raw = gr.Textbox(label="Raw output", lines=8)
-        button.click(extract, [image, document_type], [summary, payload, items, raw])
+        button.click(extract, [image], [summary, payload, items, raw])
     return demo
 
 
 if __name__ == "__main__":
-    build().launch(share=True)
+    build().queue(max_size=16).launch()

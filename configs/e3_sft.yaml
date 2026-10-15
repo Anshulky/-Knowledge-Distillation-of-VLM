@@ -1,0 +1,28 @@
+# E3a: LoRA SFT on teacher hard labels. CE only. This is the control for E4 and E5.
+exp: e3
+variant: main
+student: Qwen/Qwen2.5-VL-3B-Instruct
+kd:
+  enabled: false
+rel:
+  enabled: false
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  merger: false
+optim:
+  lr: 1.0e-4
+  new_lr: 1.0e-3
+  epochs: 2
+  micro_batch: 4
+  grad_accum: 8
+  grad_clip: 1.0
+  seed: 643
+data:
+  manifest: Data/processed/train/manifest.jsonl
+  label_filter: Data/processed/train/label_filter.json
+  max_length: 4096
+  dataset_weighting: true
+  weight_power: 0.5
+  drop_flagged: false

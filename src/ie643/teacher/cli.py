@@ -14,12 +14,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from ie643.preprocess.pipeline import write_jsonl
 from ie643.schema import FIELD_ORDER, coerce_canonical, teacher_prompt
 from ie643.teacher.client import VLLMClient
 from ie643.teacher.parse import parse_teacher_output
+from ie643.teacher.soft import save_soft, sha1_file, sha1_text, soft_path
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -30,6 +34,14 @@ def load_jsonl(path: Path) -> list[dict]:
             if line:
                 rows.append(json.loads(line))
     return rows
+
+
+def pred_stem(pred_key: str) -> str:
+    if pred_key.endswith("_gt"):
+        return pred_key[: -len("_gt")]
+    if pred_key.endswith("_pred"):
+        return pred_key[: -len("_pred")]
+    return pred_key
 
 
 def pred_keys(pred_key: str) -> tuple[str, str, str, str]:
@@ -54,15 +66,37 @@ def infer_record(
     raw_key: str,
     error_key: str,
     status: str,
+    logprobs: int = 0,
+    soft_dir: Path | None = None,
+    soft_meta: dict | None = None,
 ) -> dict:
     image = root / rec["image"]
-    prompt = teacher_prompt(rec.get("doc_type_hint"), rec.get("language_hint"))
-    rec["teacher_prompt"] = prompt
-    raw = client.extract(image, prompt, max_tokens=max_tokens)
+    prompt = teacher_prompt()
+    stem = pred_stem(pred_key)
+    rec[f"{stem}_prompt"] = prompt  # the prompt this prediction was made with
+    out = client.extract_full(image, prompt, max_tokens=max_tokens, logprobs=logprobs)
+    raw = out["content"]
     rec[raw_key] = raw
     rec[pred_key] = parse_teacher_output(raw, fallback=None)
     rec[error_key] = None
-    rec["status"] = status
+    rec[f"{stem}_finish_reason"] = out["finish_reason"]
+    rec[f"{stem}_completion_tokens"] = out["usage"].get("completion_tokens")
+    if logprobs:
+        if not out["logprobs"]:
+            raise RuntimeError("server returned no logprobs")
+        path = soft_path(soft_dir, rec)
+        meta = {
+            **(soft_meta or {}),
+            "uid": rec["uid"],
+            "finish_reason": out["finish_reason"],
+            "completion_tokens": out["usage"].get("completion_tokens"),
+            "prompt_sha1": sha1_text(prompt),
+            "image_sha1": sha1_file(image),
+        }
+        save_soft(path, out["logprobs"], k=logprobs, meta=meta)
+        rec[f"{stem}_soft"] = os.path.relpath(path, root.resolve())
+    if pred_key in {"teacher_gt", "student_pred"}:
+        rec["status"] = status
     return rec
 
 
@@ -107,7 +141,7 @@ def compare_penalty(client: VLLMClient, rows: list[dict], root: Path, *, n: int,
         try:
             raw = client.extract(
                 root / rec["image"],
-                teacher_prompt(rec.get("doc_type_hint"), rec.get("language_hint")),
+                teacher_prompt(),
                 max_tokens=max_tokens,
             )
             penalized = parse_teacher_output(raw, fallback=None)
@@ -150,6 +184,15 @@ def main() -> None:
     parser.add_argument("--frequency-penalty", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=4096)
     parser.add_argument("--timeout", type=int, default=180)
+    parser.add_argument("--workers", type=int, default=1, help="concurrent requests (vLLM batches them)")
+    parser.add_argument("--checkpoint-every", type=int, default=10, help="rewrite the manifest every N finished rows")
+    parser.add_argument("--logprobs", type=int, default=0, help="store top-K logprobs per output token (soft labels)")
+    parser.add_argument("--soft-dir", type=Path, default=None, help="default: <manifest dir>/soft")
+    parser.add_argument(
+        "--server-logprobs-mode",
+        default="raw_logprobs",
+        help="the vLLM --logprobs-mode the server was started with (recorded in soft-label metadata)",
+    )
     args = parser.parse_args()
 
     pred_key, raw_key, error_key, status = pred_keys(args.pred_key)
@@ -181,8 +224,27 @@ def main() -> None:
         compare_penalty(client, rows, root, n=args.compare, max_tokens=args.max_tokens)
         return
 
-    done = 0
-    errors = 0
+    soft_dir = (args.soft_dir or root / "soft").resolve() if args.logprobs else None
+    soft_meta = None
+    if args.logprobs:
+        if args.backend == "dummy":
+            raise SystemExit("--logprobs needs the vllm backend")
+        soft_meta = {
+            "model": args.model,
+            "server_version": client.server_version(),
+            "logprobs_mode": args.server_logprobs_mode,
+            "k": args.logprobs,
+            "sampling": {
+                "temperature": 0.0,
+                "repetition_penalty": args.repetition_penalty,
+                "frequency_penalty": args.frequency_penalty,
+                "max_tokens": args.max_tokens,
+                "response_format": "json_object",
+            },
+            "hints": False,
+        }
+
+    todo = []
     for rec in rows:
         if uids and rec.get("uid") not in uids:
             continue
@@ -190,33 +252,57 @@ def main() -> None:
             failed = bool(rec.get(error_key)) or str(rec.get("status") or "").endswith("_error")
             if not failed:
                 continue
-        if args.limit is not None and done >= args.limit:
-            break
-        if rec.get(pred_key) and not args.overwrite and not args.errors_only:
+        elif rec.get(pred_key) and not args.overwrite:
             continue
+        todo.append(rec)
+        if args.limit is not None and len(todo) >= args.limit:
+            break
+
+    def work(rec: dict) -> dict:
+        """Runs in a worker thread on a copy; the main thread applies the result."""
+        new = dict(rec)
         try:
             if args.backend == "dummy":
-                dummy_record(rec, pred_key=pred_key, raw_key=raw_key, error_key=error_key, status=status)
+                dummy_record(new, pred_key=pred_key, raw_key=raw_key, error_key=error_key, status=status)
             else:
                 infer_record(
                     client,
-                    rec,
+                    new,
                     root,
                     max_tokens=args.max_tokens,
                     pred_key=pred_key,
                     raw_key=raw_key,
                     error_key=error_key,
                     status=status,
+                    logprobs=args.logprobs,
+                    soft_dir=soft_dir,
+                    soft_meta=soft_meta,
                 )
         except Exception as exc:  # noqa: BLE001 — resume the rest of the manifest
-            rec["status"] = f"{status}_error"
-            rec[error_key] = str(exc)
-            rec[pred_key] = None
-            errors += 1
-        done += 1
-        if done % 10 == 0:
-            write_jsonl(args.manifest, rows)
-            print(f"checkpoint {done}/{len(rows)} errors={errors}")
+            if pred_key in {"teacher_gt", "student_pred"}:
+                new["status"] = f"{status}_error"
+            new[error_key] = str(exc)
+            new[pred_key] = None
+        return new
+
+    print(f"{len(todo)} rows to extract with {args.workers} worker(s)")
+    done = 0
+    errors = 0
+    t0 = time.time()
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futures = {pool.submit(work, rec): rec for rec in todo}
+        for fut in as_completed(futures):
+            rec = futures[fut]
+            new = fut.result()
+            rec.clear()
+            rec.update(new)
+            errors += bool(new.get(error_key))
+            done += 1
+            if done % args.checkpoint_every == 0:
+                write_jsonl(args.manifest, rows)
+                rate = done / (time.time() - t0)
+                eta_h = (len(todo) - done) / rate / 3600 if rate else float("nan")
+                print(f"checkpoint {done}/{len(todo)} errors={errors} {rate:.2f} img/s eta={eta_h:.1f}h", flush=True)
     write_jsonl(args.manifest, rows)
     by_ds: dict[str, list] = {}
     for rec in rows:

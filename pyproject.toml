@@ -10,6 +10,7 @@ dependencies = [
     "matplotlib>=3.11.2",
     "numpy>=2.0",
     "pandas>=2.0",
+    "peft>=0.17",
     "pillow>=11.0",
     "pyarrow>=17.0",
     "transformers>=5.17.0",

@@ -10,3 +10,7 @@ wheels/
 .venv
 
 Data
+figures
+Results
+docs
+runs

@@ -123,7 +123,7 @@ def _manifest_row(rec: dict[str, Any], canon: CanonicalImage, rel: Path) -> dict
         "student_pred": None,
         "teacher_raw": None,
         "student_raw": None,
-        "teacher_prompt": teacher_prompt(rec.get("doc_type_hint"), rec.get("language_hint")),
+        "teacher_prompt": teacher_prompt(),
         "review_status": "pending",
         "review_gt": None,
         "status": "preprocessed",
