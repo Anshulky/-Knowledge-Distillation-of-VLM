@@ -29,7 +29,7 @@ def document_counts(rows: list[dict], pred_key: str, gt_key: str, *, clean: bool
             gold = clean_gold(gold, rec.get("dataset"))
         pred = rec.get(pred_key) or {}
         tp = fp = fn = 0
-        for _field, (a, b, c) in score_record(pred, gold).items():
+        for _field, (a, b, c) in score_record(pred, gold, alternatives=rec.get("gt_alternatives")).items():
             tp += a
             fp += b
             fn += c

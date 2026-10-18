@@ -75,6 +75,16 @@ def _read_parquet_cells(path: Path, column: str, indices: list[int]) -> dict[int
     return found
 
 
+PDF_DPI = 200  # DocILE page sizes are given at 200 dpi
+
+
+def _render_pdf_page(path: Path, page: int) -> bytes:
+    import pymupdf  # only needed for PDF datasets (DocILE)
+
+    with pymupdf.open(path) as doc:
+        return doc[page].get_pixmap(dpi=PDF_DPI).tobytes("png")
+
+
 def _read_one(rec: dict[str, Any], data_root: Path) -> bytes:
     img = rec["image"]
     kind = img.get("kind")
@@ -83,6 +93,11 @@ def _read_one(rec: dict[str, Any], data_root: Path) -> bytes:
         if not path.exists():
             raise FileNotFoundError(path)
         return path.read_bytes()
+    if kind == "pdf":
+        path = data_root / img["path"]
+        if not path.exists():
+            raise FileNotFoundError(path)
+        return _render_pdf_page(path, int(img.get("page", 0)))
     if kind == "parquet":
         cells = _read_parquet_cells(
             data_root / img["path"],
@@ -104,7 +119,7 @@ def _process_rec(rec: dict[str, Any], raw: bytes, out_dir: Path) -> dict[str, An
 
 
 def _manifest_row(rec: dict[str, Any], canon: CanonicalImage, rel: Path) -> dict[str, Any]:
-    return {
+    row = {
         "uid": rec["uid"],
         "dataset": rec["dataset"],
         "split": rec["split"],
@@ -128,6 +143,9 @@ def _manifest_row(rec: dict[str, Any], canon: CanonicalImage, rel: Path) -> dict
         "review_gt": None,
         "status": "preprocessed",
     }
+    if rec.get("gt_alternatives"):
+        row["gt_alternatives"] = rec["gt_alternatives"]
+    return row
 
 
 def pack_split(
@@ -160,13 +178,13 @@ def pack_split(
     print(f"pack {split}: {len(records)} uids, {len(todo)} to write", flush=True)
 
     done: dict[str, dict[str, Any]] = dict(existing)
-    file_recs = [r for r in todo if r["image"].get("kind") == "file"]
+    file_recs = [r for r in todo if r["image"].get("kind") in ("file", "pdf")]
     parquet_jobs: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for rec in todo:
         img = rec["image"]
         if img.get("kind") == "parquet":
             parquet_jobs[(img["path"], img.get("column") or "image")].append(rec)
-        elif img.get("kind") != "file":
+        elif img.get("kind") not in ("file", "pdf"):
             raise ValueError(f"{rec['uid']}: unknown image kind {img.get('kind')!r}")
 
     n_written = 0

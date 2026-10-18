@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
+from collections import defaultdict
+from datetime import date as _date
 from typing import Any
 
 from ie643.schema import coerce_canonical, empty_canonical, make_item
@@ -372,3 +375,222 @@ def strip_private(canonical: dict[str, Any]) -> dict[str, Any]:
     from ie643.schema import FIELD_ORDER
 
     return {k: canonical[k] for k in FIELD_ORDER if k in canonical}
+
+
+# --- Evaluation-only datasets (DocILE, MC-OCR); records built by ie643.splits.ood ---
+# These return (source_gt, gt_alternatives). A field printed in several boxes keeps the
+# first box in reading order; the other distinct values are alternatives the evaluator
+# also accepts (office address vs remit-to P.O. box, logo name vs branch name).
+
+_NON_ALNUM = re.compile(r"[^0-9a-z]+")
+_MDY = re.compile(r"\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})\b")
+
+
+def _distinct(values: Any) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        t = _text(value)
+        if not t:
+            continue
+        key = _NON_ALNUM.sub("", t.casefold()) or t
+        if key not in seen:
+            seen.add(key)
+            out.append(t)
+    return out
+
+
+def _us_date_iso(text: str | None) -> str | None:
+    """03/25/99 -> 1999-03-25 when the printed date is a valid month/day/year."""
+    m = _MDY.search(text or "")
+    if not m:
+        return None
+    month, day, year = (int(g) for g in m.groups())
+    if len(m.group(3)) == 2:
+        year += 2000 if year < 70 else 1900
+    try:
+        return _date(year, month, day).isoformat()
+    except ValueError:
+        return None
+
+
+def _docile_order(box: dict[str, Any]) -> tuple:
+    x0, y0, _, _ = box.get("bbox") or (0, 0, 0, 0)
+    return (box.get("page", 0), round(y0, 2), x0)
+
+
+_DOCILE_DOC_TYPE = {
+    "tax_invoice": "invoice",
+    "proforma": "invoice",
+    "credit_note": "invoice",
+    "debit_note": "invoice",
+    "utility_bill": "invoice",
+    "receipt": "receipt",
+}
+
+
+def from_docile(ann: dict[str, Any]) -> tuple[dict[str, Any], dict[str, list[str]]]:
+    """DocILE annotation JSON (human field labels, not the OCR) -> (source_gt, alternatives)."""
+    meta = ann.get("metadata") or {}
+    out = empty_canonical(
+        document_type=_DOCILE_DOC_TYPE.get(meta.get("document_type"), "other"), language="en"
+    )
+    boxes: dict[str, list[str]] = defaultdict(list)
+    for box in sorted(ann.get("field_extractions") or [], key=_docile_order):
+        t = _text(box.get("text"))
+        if t:
+            boxes[box["fieldtype"]].append(t)
+    alts: dict[str, list[str]] = {}
+
+    def put(key: str, *fieldtypes: str) -> None:
+        values = _distinct(v for ft in fieldtypes for v in boxes.get(ft, []))
+        if values:
+            out[key] = values[0]
+            if len(values) > 1:
+                alts[key] = values[1:]
+
+    put("vendor", "vendor_name")
+    put("vendor_address", "vendor_address")
+    put("vendor_tax_id", "vendor_tax_id")
+    put("buyer", "customer_billing_name")
+    put("buyer_address", "customer_billing_address")
+    put("date", "date_issue")
+    put("due_date", "date_due")
+    put("receipt_number" if out["document_type"] == "receipt" else "invoice_number", "document_id")
+    put("po_number", "customer_order_id", "order_id")
+    put("subtotal", "amount_total_net")
+    put("tax", "amount_total_tax")
+    put("total", "amount_total_gross")
+    if out["total"] is None:
+        put("total", "amount_due")
+    out["currency"] = _currency_from(*boxes.get("currency_code_amount_due", []), out["total"], out["subtotal"])
+
+    # US invoices print 03/25/99; the evaluator reads d/m/y, so also accept the ISO date.
+    for key in ("date", "due_date"):
+        for value in [out[key], *alts.get(key, [])]:
+            iso = _us_date_iso(value)
+            if iso and iso not in alts.get(key, []):
+                alts.setdefault(key, []).append(iso)
+
+    rows: dict[Any, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+    for box in sorted(ann.get("line_item_extractions") or [], key=_docile_order):
+        t = _text(box.get("text"))
+        if t:
+            rows[box.get("line_item_id")][box["fieldtype"]].append(t)
+    items = []
+    for _, row in sorted(rows.items(), key=lambda kv: (kv[0] is None, kv[0] or 0)):
+        def first(*fieldtypes: str) -> str | None:
+            for ft in fieldtypes:
+                if row.get(ft):
+                    return row[ft][0]
+            return None
+
+        item = make_item(
+            name=" ".join(row.get("line_item_description", [])) or None,
+            quantity=first("line_item_quantity"),
+            unit_price=first("line_item_unit_price_gross", "line_item_unit_price_net"),
+            amount=first("line_item_amount_gross", "line_item_amount_net"),
+        )
+        if item["amount"] and not re.search(r"\d", item["amount"]):
+            continue  # table header annotated as an item ("Program | # of spots | Rate | Total Cost")
+        if item["name"] or item["amount"]:  # the evaluator matches rows on name + amount
+            items.append(item)
+    out["line_items"] = items
+    return coerce_canonical(out), alts
+
+
+_VN_DATE = re.compile(r"\d{1,2}\s*[/.-]\s*\d{1,2}\s*[/.-]\s*\d{2,4}")
+_CLOCK = re.compile(r"(\d{1,2})\s*:\s*(\d{2})(?:\s*:\s*(\d{2}))?")
+_AMOUNT_ONLY = re.compile(r"[\d\s.,]+(?:đ|d|vnd|vnđ)?")
+_NUMBER_RUN = re.compile(r"\d[\d.,\s]*\d|\d")
+
+
+def from_mcocr(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, list[str]]]:
+    """MC-OCR CSV row (Vietnamese receipt, 4 labels) -> (source_gt, alternatives)."""
+    texts = str(row.get("anno_texts") or "").split("|||")
+    labels = str(row.get("anno_labels") or "").split("|||")
+    try:
+        polys = ast.literal_eval(row.get("anno_polygons") or "[]")
+    except (ValueError, SyntaxError):
+        polys = []
+    bboxes = [p.get("bbox") or [0, 0, 0, 0] for p in polys] if len(polys) == len(texts) else []
+    order = range(len(texts))
+    if bboxes:
+        order = sorted(order, key=lambda i: (round(bboxes[i][1] / 15), bboxes[i][0]))
+    by: dict[str, list[str]] = defaultdict(list)
+    for i in order:
+        label = labels[i].strip() if i < len(labels) else ""
+        label = "TOTAL_COST" if label == "TOTAL_TOTAL_COST" else label
+        t = _text(texts[i])
+        if t and label:
+            by[label].append(t)
+
+    out = empty_canonical(document_type="receipt", language="unknown")
+    alts: dict[str, list[str]] = {}
+    sellers = _distinct(by["SELLER"])
+    if sellers:
+        out["vendor"] = sellers[0]
+        if len(sellers) > 1:
+            alts["vendor"] = sellers[1:] + [" ".join(sellers)]
+    out["vendor_address"] = " ".join(by["ADDRESS"]) or None
+
+    stamp = " ".join(by["TIMESTAMP"])
+    m = _VN_DATE.search(stamp)
+    if m:
+        out["date"] = re.sub(r"\s+", "", m.group(0))
+        stamp = stamp[: m.start()] + " " + stamp[m.end() :]
+    clock = _CLOCK.search(stamp)
+    if clock:
+        out["time"] = ":".join(g for g in clock.groups() if g)
+    if not m and not clock and stamp:
+        out["date"] = stamp
+
+    amounts = [t for t in by["TOTAL_COST"] if _AMOUNT_ONLY.fullmatch(t.casefold().strip())]
+    if not amounts:  # label and number in one box: keep the number
+        amounts = [_NUMBER_RUN.findall(t)[-1].strip() for t in by["TOTAL_COST"] if _NUMBER_RUN.search(t)]
+    amounts = _distinct(amounts)
+    if amounts:
+        out["total"] = amounts[0]
+        if len(amounts) > 1:
+            alts["total"] = amounts[1:]
+    return coerce_canonical(out), alts
+
+
+_PLACE_WORD = re.compile(r"[^\W\d_]{4,}")  # "Cairo", "London": currency guessed from the place, not printed
+
+
+def _rb_doc_type(category: str) -> str:
+    if re.search(r"Purchase|Dining|Taxi|Fuel|Parking|Toll|Laundry|Printing|Medical", category):
+        return "receipt"
+    if re.search(r"Bill|UtilityFee|PhoneFee|InternetFee", category):
+        return "invoice"
+    return "other"
+
+
+def from_receiptbench(ann: dict[str, Any], category: str) -> tuple[dict[str, Any], dict[str, list[str]]]:
+    """ReceiptBench JSON -> (source_gt, alternatives). Only fields that are printed as-is.
+
+    Skipped: seller_address (a "Country-City" region, not the printed address), invoice_number
+    (ticket no. / PNR / order id / receipt id; not one schema key), detail (items mixed with
+    fees, taxes, discounts and subtotals), travel fields with no schema key.
+    """
+    out = empty_canonical(document_type=_rb_doc_type(category), language="unknown")
+    alts: dict[str, list[str]] = {}
+    sellers = _distinct(ann.get("seller_name") or [])
+    if sellers:
+        out["vendor"] = sellers[0]
+        if len(sellers) > 1:
+            alts["vendor"] = sellers[1:]
+    out["vendor_tax_id"] = _text(ann.get("tax_number"))
+    out["date"] = _text(ann.get("orig_invoice_time"))
+    std_date = _text(ann.get("std_invoice_time"))
+    if out["date"] and std_date and std_date != out["date"]:
+        alts["date"] = [std_date]
+    out["total"] = _text(ann.get("orig_total"))
+    std_total = _text(ann.get("std_total"))
+    if out["total"] and std_total and std_total != out["total"] and re.search(r"[1-9]", std_total):
+        alts["total"] = [std_total]
+    printed_currency = [c for c in ann.get("orig_curr") or [] if _text(c) and not _PLACE_WORD.fullmatch(_text(c))]
+    if printed_currency:
+        out["currency"] = _text(ann.get("std_curr"))
+    return coerce_canonical(out), alts

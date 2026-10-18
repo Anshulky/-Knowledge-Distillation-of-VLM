@@ -14,3 +14,12 @@ figures
 Results
 docs
 runs
+BlitzNet_project_preparatory.pdf
+KD with w_none
+SFT with hard labels
+external_dataset
+checkpoints
+ood.tar
+processed.tar
+.idea
+bash.exe.stackdump
