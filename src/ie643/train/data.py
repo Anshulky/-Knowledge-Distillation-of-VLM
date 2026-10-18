@@ -2,20 +2,25 @@
 
 The prompt side is built exactly like inference (same chat template and prompt as
 ie643.teacher through vLLM), so the fine-tuned model is served and scored with the
-unchanged extraction client. Only answer tokens carry labels; with a labeled-field
-map, the value tokens of fields the dataset does not annotate are ignored too.
+unchanged extraction client. Only answer tokens carry labels.
+
+Masking (dataset labels are incomplete): a field with a value is always trained. An empty
+field is trained as null only where the dataset fills that field reliably (``null_fields``,
+see ie643.labeled); elsewhere an empty label may hide a printed value, so it is masked.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 import torch
 from PIL import Image
 
+from ie643.labeled import is_empty
 from ie643.schema import FIELD_ORDER, coerce_canonical, teacher_prompt
 
 IGNORE_INDEX = -100
@@ -45,6 +50,18 @@ def is_val_uid(uid: str, frac: float) -> bool:
     return int(hashlib.sha1(uid.encode("utf-8")).hexdigest()[:8], 16) / 2**32 < frac
 
 
+def masked_spans(source_gt: dict[str, Any] | None, spans: dict[str, tuple[int, int]], null_fields: set[str]) -> list[tuple[int, int]]:
+    """Value spans left out of the loss: empty fields the dataset does not fill reliably."""
+    canon = coerce_canonical(source_gt or {})
+    return [spans[k] for k in FIELD_ORDER if is_empty(canon[k]) and k not in null_fields]
+
+
+def balance_weights(datasets: list[str], power: float) -> list[float]:
+    """Per-row sampling weight so that P(dataset) ∝ n_dataset^power (power 1 = no balancing)."""
+    counts = Counter(datasets)
+    return [counts[ds] ** (power - 1.0) for ds in datasets]
+
+
 class SFTDataset(torch.utils.data.Dataset):
     def __init__(
         self,
@@ -52,17 +69,35 @@ class SFTDataset(torch.utils.data.Dataset):
         root: Path,
         processor: Any,
         *,
-        labeled: dict[str, list[str]] | None,
+        null_fields: dict[str, list[str]] | None,
         max_len: int,
     ) -> None:
-        self.rows = rows
+        """null_fields: per dataset, fields whose empty label is trained as null; None trains every null."""
         self.root = root
         self.processor = processor
         self.tok = processor.tokenizer
-        self.labeled = {ds: set(keys) for ds, keys in labeled.items()} if labeled else None
+        self.null_fields = {ds: set(keys) for ds, keys in null_fields.items()} if null_fields is not None else None
         self.max_len = max_len
         self.im_end = self.tok.convert_tokens_to_ids("<|im_end|>")
         self.newline = self.tok("\n", add_special_tokens=False)["input_ids"]
+        # Too-long examples are dropped (never truncated: a cut-off target teaches a broken JSON).
+        overhead = self._prompt_overhead()
+        self.rows, self.dropped_long = [], []
+        for rec in rows:
+            (self.rows if self.length(rec, overhead) <= max_len else self.dropped_long).append(rec)
+
+    def _prompt_text(self) -> str:
+        messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": teacher_prompt()}]}]
+        return self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
+    def _prompt_overhead(self) -> int:
+        """Prompt tokens other than the image; the processor expands the one image pad per 28x28 patch."""
+        return len(self.tok(self._prompt_text(), add_special_tokens=False)["input_ids"]) - 1
+
+    def length(self, rec: dict[str, Any], overhead: int) -> int:
+        n_image = (int(rec["width"]) // 28) * (int(rec["height"]) // 28)
+        n_answer = len(self.tok(target_json(rec.get("source_gt"))[0], add_special_tokens=False)["input_ids"])
+        return overhead + n_image + n_answer + 1 + len(self.newline)
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -70,19 +105,15 @@ class SFTDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         rec = self.rows[idx]
         image = Image.open(self.root / rec["image"]).convert("RGB")
-        prompt = teacher_prompt()
-        messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt}]}]
-        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        enc = self.processor(text=[text], images=[image], return_tensors="pt")
+        enc = self.processor(text=[self._prompt_text()], images=[image], return_tensors="pt")
         prompt_ids = enc["input_ids"][0].tolist()
 
         answer, spans = target_json(rec.get("source_gt"))
         ans = self.tok(answer, add_special_tokens=False, return_offsets_mapping=True)
         ans_ids = list(ans["input_ids"])
         ans_labels = list(ans_ids)
-        if self.labeled is not None and rec["dataset"] in self.labeled:
-            keep = self.labeled[rec["dataset"]]
-            skip = [spans[k] for k in FIELD_ORDER if k not in keep]
+        if self.null_fields is not None:
+            skip = masked_spans(rec.get("source_gt"), spans, self.null_fields.get(rec["dataset"], set()))
             for j, (a, b) in enumerate(ans["offset_mapping"]):
                 if any(a < e and b > s for s, e in skip):
                     ans_labels[j] = IGNORE_INDEX
@@ -90,8 +121,6 @@ class SFTDataset(torch.utils.data.Dataset):
         # "<|im_end|>\n" closes the assistant turn; learning <|im_end|> teaches the model to stop.
         input_ids = prompt_ids + ans_ids + [self.im_end] + self.newline
         labels = [IGNORE_INDEX] * len(prompt_ids) + ans_labels + [self.im_end] + [IGNORE_INDEX] * len(self.newline)
-        if len(input_ids) > self.max_len:
-            input_ids, labels = input_ids[: self.max_len], labels[: self.max_len]
         return {
             "input_ids": torch.tensor(input_ids, dtype=torch.long),
             "labels": torch.tensor(labels, dtype=torch.long),
