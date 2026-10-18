@@ -1,0 +1,65 @@
+{
+  "version": "ood-1.1",
+  "seed": 643,
+  "data_root": "external_dataset",
+  "protocol": {
+    "evaluation_only": true,
+    "split_label": "test",
+    "sample_sizes": {
+      "docile": 2000,
+      "receiptbench": 2000
+    }
+  },
+  "datasets": {
+    "docile": {
+      "file": "docile.json",
+      "counts": {
+        "test": 2000,
+        "eligible": 4261,
+        "skipped": {
+          "multi_page": 1419,
+          "no_fields": 0
+        }
+      },
+      "notes": [
+        "DocILE annotated train+val (test labels not public); single-page PDFs only, rendered at 200 dpi.",
+        "Field text from the human annotations, not the OCR. First box in reading order is source_gt.",
+        "Random sample of 2000 of 4261 single-page documents (seed 643)."
+      ]
+    },
+    "mc-ocr": {
+      "file": "mc-ocr.json",
+      "counts": {
+        "test": 1149,
+        "skipped": {
+          "missing_image": 0,
+          "no_fields": 6
+        }
+      },
+      "notes": [
+        "MC-OCR 2021 labelled train CSV (Vietnamese receipts): SELLER, ADDRESS, TIMESTAMP, TOTAL_COST.",
+        "TIMESTAMP is split into date + time; TOTAL_COST keeps the amount box, not the label text."
+      ]
+    },
+    "receiptbench": {
+      "file": "receiptbench.json",
+      "counts": {
+        "test": 2000,
+        "eligible": 10608,
+        "skipped": {
+          "missing_image": 0,
+          "empty_image": 17,
+          "no_fields": 5
+        }
+      },
+      "notes": [
+        "ReceiptBench v1 (receipts, tickets, bills; 51 categories). Scored fields: vendor (seller_name), date (orig_invoice_time), total (orig_total), currency (std_curr, only with a printed symbol/code), vendor_tax_id (tax_number).",
+        "Not scored: seller_address (region, not printed), invoice_number (mixed id types), detail (items mixed with fees/taxes/subtotals), travel fields.",
+        "Random sample of 2000 of 10608 documents with a scorable field (seed 643)."
+      ]
+    }
+  },
+  "totals": {
+    "test": 5149
+  }
+}

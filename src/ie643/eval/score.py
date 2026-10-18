@@ -51,8 +51,13 @@ def score_record(
     *,
     fields: tuple[str, ...] = EXTRACTION_FIELDS,
     strict: bool = False,
+    alternatives: dict[str, list[Any]] | None = None,
 ) -> dict[str, tuple[int, int, int]]:
-    """Per-field (tp, fp, fn) for one document."""
+    """Per-field (tp, fp, fn) for one document.
+
+    alternatives: other printed values a scalar field may take (row gt_alternatives,
+    DocILE / MC-OCR / ReceiptBench only); a prediction matching any of them is correct.
+    """
     pred = pred or {}
     gold = gold or {}
     out: dict[str, tuple[int, int, int]] = {}
@@ -78,7 +83,9 @@ def score_record(
         if field == "tax" and tax_values_match(p, g, gold.get("taxes")):
             out[field] = (1, 0, 0)
             continue
-        if values_match(field, p, g):
+        if values_match(field, p, g) or any(
+            values_match(field, p, alt) for alt in (alternatives or {}).get(field, ())
+        ):
             out[field] = (1, 0, 0)
         else:
             out[field] = (0, 1, 1)
@@ -119,7 +126,7 @@ def evaluate(
                 continue
             pred = {}
         n_scored += 1
-        per = score_record(pred, gold, fields=fields, strict=strict)
+        per = score_record(pred, gold, fields=fields, strict=strict, alternatives=rec.get("gt_alternatives"))
         if not per:
             n_empty_gt += 1
         for field, (tp, fp, fn) in per.items():
