@@ -1,10 +1,11 @@
 """Which canonical fields each dataset's source_gt actually annotates.
 
 Datasets label different subsets of the schema (SROIE: vendor, address, date,
-total; CORD: line items and totals; ...). A null is only trusted as "not printed"
-for fields the dataset labels somewhere; everywhere else it means "not
-annotated". Training masks those fields out of the CE loss, and evaluation
-should skip them, so a model is never taught or scored on missing annotations.
+total; CORD: line items and totals; ...), and some label a field only on part of
+their rows. A null is only trusted as "not printed" for fields the dataset fills
+reliably; everywhere else it may be a missing annotation. E3 training
+(ie643.train) calls this with min_frac=0.9: empty labels of those fields are
+trained as null, other empty labels are masked, values are always trained.
 """
 
 from __future__ import annotations
