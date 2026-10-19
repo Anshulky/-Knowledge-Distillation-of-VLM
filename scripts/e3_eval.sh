@@ -1,7 +1,7 @@
 #!/bin/bash
 # E3 on test: merge the LoRA adapter, serve it with vLLM, extract into $PRED_KEY.
 # Same prompt and sampling as E2, so the two are directly comparable.
-#   sbatch scripts/e3_eval.sh                                        # E3-v2 -> e3v2_pred
+#   sbatch scripts/e3_eval.sh                                        # E3-v3 -> e3v3_pred
 #   RUN=checkpoints/e3 PRED_KEY=e3_pred sbatch scripts/e3_eval.sh    # E3-v1
 # Do not run while another job writes Data/processed/test/manifest.jsonl.
 #SBATCH --job-name=e3-eval
@@ -13,8 +13,8 @@
 #SBATCH --time=06:00:00
 #SBATCH --output=logs/%x-%j.out
 
-RUN="${RUN:-checkpoints/e3_v2}"
-PRED_KEY="${PRED_KEY:-e3v2_pred}"
+RUN="${RUN:-checkpoints/e3_v3}"
+PRED_KEY="${PRED_KEY:-e3v3_pred}"
 
 cd ~/-Knowledge-Distillation-of-VLM
 export PATH="$HOME/-Knowledge-Distillation-of-VLM/.venv/bin:$PATH"
