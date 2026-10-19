@@ -3,9 +3,9 @@
 Datasets label different subsets of the schema (SROIE: vendor, address, date,
 total; CORD: line items and totals; ...), and some label a field only on part of
 their rows. A null is only trusted as "not printed" for fields the dataset fills
-reliably; everywhere else it may be a missing annotation. E3 training
-(ie643.train) calls this with min_frac=0.9: empty labels of those fields are
-trained as null, other empty labels are masked, values are always trained.
+at all; elsewhere it is a missing annotation. E3 training (ie643.train) calls
+this with min_frac=0.01: empty labels of those fields are trained as null, other
+empty labels are masked, values are always trained.
 """
 
 from __future__ import annotations

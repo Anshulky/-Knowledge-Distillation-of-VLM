@@ -8,10 +8,11 @@ current split's train uids (splits/*.json, content duplicates of test removed); 
 from the teacher is used.
 
 Values in source_gt are always trained; an empty label is trained as null only where the
-dataset fills that field in >= --null-frac of its rows, otherwise it is masked.
+dataset fills that field in >= --null-frac (1%) of its rows, i.e. annotates it at all; fields
+the dataset never labels are masked.
 
-  python -m ie643.train --manifest Data/processed/train/manifest.jsonl --out checkpoints/e3_v2
-  (E3-v1 was: --train-merger --epochs 1 --batch-size 2 --val-frac 0.02 --balance-power 1, 1% field masking)
+  python -m ie643.train --manifest Data/processed/train/manifest.jsonl --out checkpoints/e3_v3
+  (E3-v1 was: --train-merger --epochs 1 --batch-size 2 --val-frac 0.02 --balance-power 1)
 """
 
 from __future__ import annotations
@@ -56,7 +57,7 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, default=Path("Data/processed/train/manifest.jsonl"))
     parser.add_argument("--splits", type=Path, default=Path("splits"), help="train only on this split's train uids")
     parser.add_argument("--model", default="Qwen/Qwen2.5-VL-3B-Instruct")
-    parser.add_argument("--out", type=Path, default=Path("checkpoints/e3_v2"))
+    parser.add_argument("--out", type=Path, default=Path("checkpoints/e3_v3"))
     parser.add_argument("--epochs", type=float, default=2.0)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--batch-size", type=int, default=4)
@@ -66,7 +67,7 @@ def main() -> None:
     parser.add_argument("--lora-alpha", type=int, default=32)
     parser.add_argument("--lora-dropout", type=float, default=0.05)
     parser.add_argument("--train-merger", action="store_true", help="also train the vision merger (E3-v1 did)")
-    parser.add_argument("--null-frac", type=float, default=0.9,
+    parser.add_argument("--null-frac", type=float, default=0.01,
                         help="train an empty label as null only if the dataset fills that field in this share of rows")
     parser.add_argument("--balance-power", type=float, default=0.5, help="P(dataset) ∝ n^power; 1 = no balancing")
     parser.add_argument("--val-frac", type=float, default=0.0, help="slice of train held out for eval loss (0 = none)")

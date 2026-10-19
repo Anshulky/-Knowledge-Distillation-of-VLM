@@ -5,8 +5,8 @@ ie643.teacher through vLLM), so the fine-tuned model is served and scored with t
 unchanged extraction client. Only answer tokens carry labels.
 
 Masking (dataset labels are incomplete): a field with a value is always trained. An empty
-field is trained as null only where the dataset fills that field reliably (``null_fields``,
-see ie643.labeled); elsewhere an empty label may hide a printed value, so it is masked.
+field is trained as null only where the dataset annotates that field at all (``null_fields``,
+filled in >= 1% of its rows, see ie643.labeled); a field the dataset never labels is masked.
 """
 
 from __future__ import annotations
@@ -121,12 +121,18 @@ class SFTDataset(torch.utils.data.Dataset):
         # "<|im_end|>\n" closes the assistant turn; learning <|im_end|> teaches the model to stop.
         input_ids = prompt_ids + ans_ids + [self.im_end] + self.newline
         labels = [IGNORE_INDEX] * len(prompt_ids) + ans_labels + [self.im_end] + [IGNORE_INDEX] * len(self.newline)
-        return {
+        item = {
             "input_ids": torch.tensor(input_ids, dtype=torch.long),
             "labels": torch.tensor(labels, dtype=torch.long),
             "pixel_values": enc["pixel_values"],
             "image_grid_thw": enc["image_grid_thw"],
         }
+        # transformers 5.x builds the 3D (M-RoPE) image positions only when it gets mm_token_type_ids
+        # (0 text, 1 image); without it image tokens silently get 1D positions, unlike vLLM at inference.
+        if "mm_token_type_ids" in enc:
+            types = enc["mm_token_type_ids"][0]
+            item["mm_token_type_ids"] = torch.cat([types, types.new_zeros(len(input_ids) - len(prompt_ids))])
+        return item
 
 
 def collate(batch: list[dict[str, torch.Tensor]], *, pad_id: int) -> dict[str, torch.Tensor]:
@@ -140,10 +146,16 @@ def collate(batch: list[dict[str, torch.Tensor]], *, pad_id: int) -> dict[str, t
         input_ids[i, :length] = b["input_ids"]
         labels[i, :length] = b["labels"]
         attention_mask[i, :length] = 1
-    return {
+    out = {
         "input_ids": input_ids,
         "attention_mask": attention_mask,
         "labels": labels,
         "pixel_values": torch.cat([b["pixel_values"] for b in batch]),
         "image_grid_thw": torch.cat([b["image_grid_thw"] for b in batch]),
     }
+    if "mm_token_type_ids" in batch[0]:
+        types = torch.zeros((len(batch), n), dtype=batch[0]["mm_token_type_ids"].dtype)
+        for i, b in enumerate(batch):
+            types[i, : len(b["mm_token_type_ids"])] = b["mm_token_type_ids"]
+        out["mm_token_type_ids"] = types
+    return out

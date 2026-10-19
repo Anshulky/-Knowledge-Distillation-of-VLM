@@ -1,5 +1,5 @@
 #!/bin/bash
-# E3-v2: student + CE only on source_gt, same conditions as the teacher-label SFT / KD runs
+# E3-v3: student + CE only on source_gt (1% masking rule, M-RoPE fix), same conditions as the teacher-label SFT / KD runs
 # (LoRA on the LLM, vision encoder and merger frozen; defaults in src/ie643/train/cli.py).
 # Submit from the repo root:
 #   mkdir -p logs && sbatch scripts/e3_train.sh
@@ -17,7 +17,7 @@
 if [ "${SMOKE:-0}" = "1" ]; then
   EXTRA="--limit 32 --grad-accum 2 --save-steps 4 --out checkpoints/e3_smoke"
 else
-  EXTRA="--out checkpoints/e3_v2"
+  EXTRA="--out checkpoints/e3_v3"
 fi
 
 cd ~/-Knowledge-Distillation-of-VLM
