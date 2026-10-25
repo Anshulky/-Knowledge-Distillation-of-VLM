@@ -9,6 +9,9 @@ splits  →  pack (pre-process)  →  teacher labels  →  train  →  eval  →
 ## Setup
 
 ```bash
+git clone https://github.com/Anshulky/-Knowledge-Distillation-of-VLM.git ie643   # folder name avoids the leading "-"
+cd ie643
+command -v uv || curl -LsSf https://astral.sh/uv/install.sh | sh                 # install uv if missing
 uv sync                                  # creates .venv (Python 3.12) and installs everything in uv.lock
 source .venv/bin/activate
 export VLLM_USE_FLASHINFER_SAMPLER=0     # FlashInfer cannot read SM 12.0 on this box
@@ -163,6 +166,12 @@ KD loss: `α·CE(teacher token) + (1−α)·Σ w_t·KL₂₁(p_T‖p_S) / Σ w_t
 Merge an adapter into the base model, serve it with vLLM, extract predictions into a new `--pred-key`, then score them against `source_gt`. The prompt and decoding are identical for every model.
 
 ```bash
+# 32B teacher (reference row): with the teacher server from step 3 still running
+python -m ie643.teacher --manifest Data/processed/test/manifest.jsonl --model Qwen/Qwen3-VL-32B-Instruct \
+  --pred-key teacher_gt --repetition-penalty 1.15 --max-tokens 4096 --workers 64
+python -m ie643.eval --manifest Data/processed/test/manifest.jsonl --pred-key teacher_gt
+# (same two commands with Data/processed/ood/manifest.jsonl for the OOD column)
+
 # Merge once (works for any adapter folder: checkpoints/e3_v3/adapter, runs/e4/wnone/seed643/final, ...)
 python -m ie643.train.merge --adapter checkpoints/e3_v3/adapter --out checkpoints/e3_v3/merged
 
