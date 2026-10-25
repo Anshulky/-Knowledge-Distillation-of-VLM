@@ -12,7 +12,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Freeze leakage-safe train/test JSON for the narrowed datasets"
     )
-    parser.add_argument("--data-root", type=Path, default=Path("/backup/Anshul/IE643/Data"))
+    parser.add_argument("--data-root", type=Path, default=Path("Data"))
     parser.add_argument("--out", type=Path, default=Path("splits"))
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument(

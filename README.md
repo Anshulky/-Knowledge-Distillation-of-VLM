@@ -9,11 +9,56 @@ splits  →  pack (pre-process)  →  teacher labels  →  train  →  eval  →
 ## Setup
 
 ```bash
-uv sync                                  # Python 3.10+; vLLM needs python3.x-dev headers
+uv sync                                  # creates .venv (Python 3.12) and installs everything in uv.lock
+source .venv/bin/activate
 export VLLM_USE_FLASHINFER_SAMPLER=0     # FlashInfer cannot read SM 12.0 on this box
+hf auth login                            # only for the gated adapters (demo)
 ```
 
+`uv sync` installs the Python packages and the `ie643` package itself in editable mode. It cannot install the system parts: the NVIDIA driver / CUDA, and the `python3.12-dev` headers that vLLM needs to compile. vLLM is Linux-only, so run this on the GPU server, not on Windows.
+
 Hardware: two GPUs for the 32B teacher (tensor parallel 2), and one GPU for 3B training, serving, and rollout. All commands are run from the repo root with `.venv` active.
+
+## Data
+
+Raw datasets are not in the repo (about 17 GB). The splits only need the **images**, because the labels are already stored as `source_gt` in `splits/*.json`. Put the datasets under `Data/` (in-domain) and `external_dataset/` (OOD) at exactly these paths, since the splits refer to files by relative path:
+
+| Dataset | Source | Expected path |
+|---|---|---|
+| CORD-v2 | HF `naver-clova-ix/cord-v2` | `Data/naver-clova-ix/cord-v2/data/*.parquet` |
+| invoices-and-receipts v2 | HF `mychen76/invoices-and-receipts_ocr_v2` | `Data/mychen76/invoices-and-receipts_ocr_v2/data/*.parquet` |
+| synthetic-receipts-ocr | HF `albertobarnabo/synthetic-receipts-ocr` | `Data/albertobarnabo/synthetic-receipts-ocr/data/*.parquet` |
+| FATURA | [Zenodo 10371464](https://zenodo.org/records/10371464) (`FATURA2.zip`) | `Data/FATURA2/invoices_dataset_final/images/` |
+| SROIE 2019 | [ICDAR 2019 SROIE](https://rrc.cvc.uab.es/?ch=13) | `Data/SROIE/SROIE2019-20260919T110512Z-1-001/SROIE2019/0325updated.task2train(626p)/` (train), `Data/SROIE/SROIE_test_images_task_3/` (test) |
+| DocILE | [docile.rossum.ai](https://docile.rossum.ai) (registration) | `external_dataset/docile/pdfs/` (+ `annotations/`, `trainval.json`) |
+| MC-OCR 2021 | [CodaLab 27798](https://competitions.codalab.org/competitions/27798) | `external_dataset/mcocr_train_data/train_images/`, `mcocr_train_df.csv` |
+| ReceiptBench | [github.com/wwwT0ri/ReceiptBench](https://github.com/wwwT0ri/ReceiptBench) | `external_dataset/ReceiptBench/ReceiptBench_image_v1/ReceiptBench_image_v1/` (+ `ReceiptBench_json_v1/`) |
+
+```bash
+for r in naver-clova-ix/cord-v2 mychen76/invoices-and-receipts_ocr_v2 albertobarnabo/synthetic-receipts-ocr; do
+  hf download $r --repo-type dataset --local-dir Data/$r
+done
+```
+
+Parquet records point at a specific file name and `row_index`. If a Hugging Face dataset has been re-uploaded since then, its file names change, and `ie643.pack` reports the missing file. GT files (SROIE labels, FATURA JSON, DocILE annotations, and so on) are needed only to rebuild the splits, not to pack or evaluate.
+
+## Quick check
+
+This runs on one GPU in about 15 minutes and needs only CORD (about 2 GB):
+
+```bash
+python -m unittest discover tests                    # 31 tests, CPU, < 1 s
+hf download naver-clova-ix/cord-v2 --repo-type dataset --local-dir Data/naver-clova-ix/cord-v2
+python -m ie643.pack --split test --out Data/processed/quick --datasets cord-v2 --limit 20
+
+.venv/bin/vllm serve Qwen/Qwen2.5-VL-3B-Instruct --max-model-len 16384 --gpu-memory-utilization 0.5 &
+until curl -s http://127.0.0.1:8000/v1/models > /dev/null; do sleep 5; done   # wait for the server
+python -m ie643.teacher --manifest Data/processed/quick/manifest.jsonl --model Qwen/Qwen2.5-VL-3B-Instruct \
+  --pred-key student_pred --repetition-penalty 1.15 --max-tokens 4096
+python -m ie643.eval --manifest Data/processed/quick/manifest.jsonl --pred-key student_pred
+```
+
+To check a trained student instead, merge an adapter first (step 5) and serve the merged folder.
 
 ## 1. Splits
 

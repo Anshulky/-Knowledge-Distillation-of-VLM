@@ -17,7 +17,7 @@ from ie643.preprocess.adapters import strip_private
 from ie643.preprocess.image import CanonicalImage, canonicalize_image, save_canonical
 from ie643.schema import empty_canonical, teacher_prompt
 
-DATA_ROOT = Path("/backup/Anshul/IE643/Data")
+DATA_ROOT = Path("Data")
 DEFAULT_SPLITS = {
     "sroie": "test",
     "cord-v2": "train",

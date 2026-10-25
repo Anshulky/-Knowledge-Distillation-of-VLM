@@ -13,6 +13,8 @@ dependencies = [
     "peft>=0.17",
     "pillow>=11.0",
     "pyarrow>=17.0",
+    "pymupdf>=1.24",
+    "pyyaml>=6.0",
     "transformers>=5.17.0",
     "vllm",
 ]

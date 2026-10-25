@@ -21,7 +21,7 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="max samples per dataset")
     parser.add_argument("--seed", type=int, default=643)
     parser.add_argument("--out", type=Path, default=Path("Data/processed/legacy"))
-    parser.add_argument("--data-root", type=Path, default=Path("/backup/Anshul/IE643/Data"))
+    parser.add_argument("--data-root", type=Path, default=Path("Data"))
     args = parser.parse_args()
     names = sorted(REGISTRY) if args.datasets == "all" else [n.strip() for n in args.datasets.split(",") if n.strip()]
     recs = run(
