@@ -44,7 +44,15 @@ Parquet records point at a specific file name and `row_index`. If a Hugging Face
 
 ## Quick check
 
-This runs on one GPU in about 15 minutes and needs only CORD (about 2 GB):
+The full pipeline needs about 17 GB of raw data, two large GPUs for the 32B teacher, and about 9.5 h per training run. The quick check is a small test that exercises every stage of that pipeline end to end, without the cost. It confirms that on a fresh clone:
+
+- the environment installs and the scorer passes its unit tests;
+- the frozen splits still resolve to the downloaded images (the Hugging Face parquet file names have not changed);
+- packing, vLLM serving, extraction with the shared prompt, and scoring all run and produce a sensible F1 (zero-shot 3B scores about 70 on CORD).
+
+If it passes, the full runs differ only in data size and model. It runs on one GPU in about 15 minutes and needs only CORD (about 2 GB).
+
+**Model used:** the **zero-shot** student, base `Qwen/Qwen2.5-VL-3B-Instruct` with no adapter. It is public, so the check needs no Hugging Face approval or trained checkpoint. The distilled student is optional and shown after the block.
 
 ```bash
 python -m unittest discover tests                    # 31 tests, CPU, < 1 s
@@ -58,7 +66,19 @@ python -m ie643.teacher --manifest Data/processed/quick/manifest.jsonl --model Q
 python -m ie643.eval --manifest Data/processed/quick/manifest.jsonl --pred-key student_pred
 ```
 
-To check a trained student instead, merge an adapter first (step 5) and serve the merged folder.
+**Optional: the distilled student (KD w=none).** The adapter repo is gated, so request access and run `hf auth login` first. Then merge it, serve the merged model, and extract into its own key so the zero-shot results are kept. It scored about 92 on CORD versus about 70 zero-shot.
+
+```bash
+kill %1                                              # stop the zero-shot server
+hf download Anshulky/ie643-qwen2.5vl-3b-kd-wnone --local-dir checkpoints/kd_wnone/adapter
+python -m ie643.train.merge --adapter checkpoints/kd_wnone/adapter --out checkpoints/kd_wnone/merged
+.venv/bin/vllm serve checkpoints/kd_wnone/merged --served-model-name kd \
+  --max-model-len 16384 --gpu-memory-utilization 0.5 &
+until curl -s http://127.0.0.1:8000/v1/models > /dev/null; do sleep 5; done
+python -m ie643.teacher --manifest Data/processed/quick/manifest.jsonl --model kd \
+  --pred-key kd_pred --repetition-penalty 1.15 --max-tokens 4096
+python -m ie643.eval --manifest Data/processed/quick/manifest.jsonl --pred-key kd_pred
+```
 
 ## 1. Splits
 
