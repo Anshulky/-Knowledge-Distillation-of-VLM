@@ -14,7 +14,7 @@ def main() -> None:
     )
     parser.add_argument("--split", choices=("train", "test"), required=True)
     parser.add_argument("--splits", type=Path, default=Path("splits"))
-    parser.add_argument("--data-root", type=Path, default=Path("/backup/Anshul/IE643/Data"))
+    parser.add_argument("--data-root", type=Path, default=Path("Data"))
     parser.add_argument("--out", type=Path, default=None, help="default: Data/processed/{split}")
     parser.add_argument("--datasets", default="", help="comma-separated names; default all in index.json")
     parser.add_argument("--limit", type=int, default=None)
