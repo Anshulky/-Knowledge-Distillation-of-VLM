@@ -69,7 +69,7 @@ python -m ie643.teacher --manifest Data/processed/quick/manifest.jsonl --model Q
 python -m ie643.eval --manifest Data/processed/quick/manifest.jsonl --pred-key student_pred
 ```
 
-**Optional: the distilled student (KD w=none).** The adapter repo is gated, so request access and run `hf auth login` first. Then merge it, serve the merged model, and extract into its own key so the zero-shot results are kept. It scored about 92 on CORD versus about 70 zero-shot.
+**Optional: the distilled student (KD, final model).** The adapter repo is gated, so request access and run `hf auth login` first. Then merge it, serve the merged model, and extract into its own key so the zero-shot results are kept. It scored about 92 on CORD versus about 70 zero-shot.
 
 ```bash
 kill %1                                              # stop the zero-shot server
@@ -188,7 +188,7 @@ python -m ie643.teacher --manifest Data/processed/ood/manifest.jsonl --model e3 
 python -m ie643.eval --manifest Data/processed/ood/manifest.jsonl --pred-key e3v3_pred
 
 # Paired bootstrap CI between two runs (second minus first), and coverage vs a reference
-python -m ie643.eval.bootstrap --manifest Data/processed/test/manifest.jsonl --pred-keys e3_pred,kd_pred
+python -m ie643.eval.bootstrap --manifest Data/processed/test/manifest.jsonl --pred-keys sft_pred,kd_pred
 python -m ie643.eval --manifest Data/processed/test/manifest.jsonl --pred-key e3v3_pred \
   --ref-manifest Data/processed/test/manifest.jsonl --ref-key teacher_gt --coverage
 ```
