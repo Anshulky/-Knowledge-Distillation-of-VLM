@@ -9,7 +9,7 @@ splits  →  pack (pre-process)  →  teacher labels  →  train  →  eval  →
 ## Setup
 
 ```bash
-git clone https://github.com/Anshulky/-Knowledge-Distillation-of-VLM.git ie643   # folder name avoids the leading "-"
+git clone https://github.com/Anshulky/-Knowledge-Distillation-of-VLM.git ie643  
 cd ie643
 command -v uv || curl -LsSf https://astral.sh/uv/install.sh | sh                 # install uv if missing
 uv sync                                  # creates .venv (Python 3.12) and installs everything in uv.lock
