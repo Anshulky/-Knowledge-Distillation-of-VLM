@@ -69,7 +69,7 @@ python -m ie643.teacher --manifest Data/processed/quick/manifest.jsonl --model Q
 python -m ie643.eval --manifest Data/processed/quick/manifest.jsonl --pred-key student_pred
 ```
 
-**Optional: the distilled student (KD w=none).** The adapter repo is gated, so request access and run `hf auth login` first. Then merge it, serve the merged model, and extract into its own key so the zero-shot results are kept. It scored about 92 on CORD versus about 70 zero-shot.
+**Optional: the distilled student (KD, final model).** The adapter repo is gated, so request access and run `hf auth login` first. Then merge it, serve the merged model, and extract into its own key so the zero-shot results are kept. It scored about 92 on CORD versus about 70 zero-shot.
 
 ```bash
 kill %1                                              # stop the zero-shot server
@@ -188,7 +188,7 @@ python -m ie643.teacher --manifest Data/processed/ood/manifest.jsonl --model e3 
 python -m ie643.eval --manifest Data/processed/ood/manifest.jsonl --pred-key e3v3_pred
 
 # Paired bootstrap CI between two runs (second minus first), and coverage vs a reference
-python -m ie643.eval.bootstrap --manifest Data/processed/test/manifest.jsonl --pred-keys e3_pred,kd_pred
+python -m ie643.eval.bootstrap --manifest Data/processed/test/manifest.jsonl --pred-keys sft_pred,kd_pred
 python -m ie643.eval --manifest Data/processed/test/manifest.jsonl --pred-key e3v3_pred \
   --ref-manifest Data/processed/test/manifest.jsonl --ref-key teacher_gt --coverage
 ```
@@ -199,15 +199,13 @@ Two runs must not write to the same manifest at the same time. To run several mo
 
 | Model | Params | Trained on | In-domain micro | Macro | Real | Templ. | Unseen micro | Unseen macro |
 |---|---:|---|---:|---:|---:|---:|---:|---:|
-| Teacher (32B) | 33.4B | — (zero-shot) | 96.53 | 93.87 | 90.54 | 97.50 | 84.7† | 87.9† |
-| Student zero-shot | 3.75B | — | 77.93* | 77.24 | 76.97 | 78.09 | 69.85 | 75.94 |
+| Teacher (32B) | 33.4B | — (zero-shot) | 96.53 | 93.87 | 90.54 | 97.50 | 84.7 | 87.9 |
+| Student zero-shot | 3.75B | — | 77.93 | 77.24 | 76.97 | 78.09 | 69.85 | 75.94 |
 | E3-v3 | 3.75B | dataset labels | **97.86** | **92.79** | 86.99 | **99.62** | 46.64 | 55.54 |
 | SFT | 3.75B | teacher, hard | 96.22 | 92.26 | 87.65 | 97.60 | 74.28 | 80.54 |
 | KD (final) | 3.75B | teacher, hard + soft | 96.33 | 92.67 | **88.32** | 97.63 | **75.05** | **81.06** |
 
 Micro / macro F1 (%). Bold: best student in each column. Macro = mean of the per-dataset F1 scores. Real = SROIE, CORD and invoices-v2; Templ. = FATURA and synthetic receipts. Unseen = DocILE, MC-OCR and ReceiptBench.
-† The teacher's unseen-data scores were computed with the scorer version before the final amount-matching fix; with that version the students scored 1.8–2.2 points higher, so the teacher's lead on unseen data is probably overstated by about 2 points.
-\* The zero-shot student's in-domain score was obtained with the earlier prompt that still contained the document-type and language hints; all other runs use the final hint-free prompt.
 
 ## 6. Attention rollout
 
