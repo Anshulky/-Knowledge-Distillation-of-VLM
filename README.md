@@ -148,10 +148,8 @@ Every run uses the same setup: Qwen2.5-VL-3B with LoRA r 16 / α 32 / dropout 0.
 ```bash
 # Teacher-label runs (configs/*.yaml) -> runs/<exp>/<variant>/seed<k>/final
 python -m ie643.distill smoke --config configs/e4_kd_wnone.yaml       # loss must fall and stay finite
-python -m ie643.distill train --config configs/e3_sft.yaml            # E3a: CE on teacher tokens
-python -m ie643.distill train --config configs/e4_kd_wnone.yaml       # KD w=none (headline)
-python -m ie643.distill train --config configs/e4_kd_wvalue.yaml      # KD w=value (ablation)
-python -m ie643.distill train --config configs/e4_kd.yaml             # E4a: KD, entropy weights
+python -m ie643.distill train --config configs/e3_sft.yaml            # SFT: CE on teacher hard labels
+python -m ie643.distill train --config configs/e4_kd_wnone.yaml       # KD (final)
 
 # E3-v3: CE on dataset labels only (source_gt, no teacher), 1% masking rule -> checkpoints/e3_v3/adapter
 python -m ie643.train --manifest Data/processed/train/manifest.jsonl --limit 32 --grad-accum 2 \
@@ -199,18 +197,17 @@ Two runs must not write to the same manifest at the same time. To run several mo
 
 **Scorer v3:** micro F1 is computed over fields that `source_gt` fills. Amounts match numerically to the cent (`54,000` = 54000, `1.234,56` = 1234.56). List rows match on name plus amount. GT cleaning is on by default (`--raw-gt` turns it off): placeholders such as `[]` and `-` count as empty, FATURA `payment_method` is not scored, and invoices-v2 dict text is unpacked. Other flags: `--strict` and `--count-missing`. Regression tests are in `tests/test_eval_match.py`.
 
-| Micro F1 (%) | Frozen test | Real-photo | OOD |
-|---|---:|---:|---:|
-| 3B zero-shot | 78.98 | 76.80 | 71.6 |
-| E3a: SFT on teacher labels | 96.20 | 87.54 | 76.5 |
-| **KD w=none (headline)** | **96.41** | **88.69** | **77.2** |
-| KD w=value | 96.50 | 88.39 | — |
-| E4a: KD, entropy weights | 94.63 | 84.93 | — |
-| GT-LoRA (`source_gt`) | 97.13 | 82.89 | — |
-| E3-v3: CE on `source_gt`, masked | — | — | 62.2 |
-| 32B teacher | 96.53 | 90.54 | 84.7 |
+| Model | Params | Trained on | In-domain micro | Macro | Real | Templ. | Unseen micro | Unseen macro |
+|---|---:|---|---:|---:|---:|---:|---:|---:|
+| Teacher (32B) | 33.4B | — (zero-shot) | 96.53 | 93.87 | 90.54 | 97.50 | 84.7† | 87.9† |
+| Student zero-shot | 3.75B | — | 77.93* | 77.24 | 76.97 | 78.09 | 69.85 | 75.94 |
+| E3-v3 | 3.75B | dataset labels | **97.86** | **92.79** | 86.99 | **99.62** | 46.64 | 55.54 |
+| SFT | 3.75B | teacher, hard | 96.22 | 92.26 | 87.65 | 97.60 | 74.28 | 80.54 |
+| KD (final) | 3.75B | teacher, hard + soft | 96.33 | 92.67 | **88.32** | 97.63 | **75.05** | **81.06** |
 
-Real-photo means SROIE + CORD + inv-v2.
+Micro / macro F1 (%). Bold: best student in each column. Macro = mean of the per-dataset F1 scores. Real = SROIE, CORD and invoices-v2; Templ. = FATURA and synthetic receipts. Unseen = DocILE, MC-OCR and ReceiptBench.
+† The teacher's unseen-data scores were computed with the scorer version before the final amount-matching fix; with that version the students scored 1.8–2.2 points higher, so the teacher's lead on unseen data is probably overstated by about 2 points.
+\* The zero-shot student's in-domain score was obtained with the earlier prompt that still contained the document-type and language hints; all other runs use the final hint-free prompt.
 
 ## 6. Attention rollout
 
