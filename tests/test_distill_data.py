@@ -77,7 +77,7 @@ class Data(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         e3 = load_config(root / "configs/e3_sft.yaml")
         e4 = load_config(root / "configs/e4_kd.yaml")
-        e5 = load_config(root / "configs/e5_minilm.yaml")
+        e5 = load_config(root / "configs/e5_joint_beta1.yaml")
         self.assertFalse(e3.kd.enabled)
         self.assertFalse(e3.rel.enabled)
         self.assertEqual(e3.optim.micro_batch, 4)

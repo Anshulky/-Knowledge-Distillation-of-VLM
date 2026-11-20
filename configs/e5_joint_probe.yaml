@@ -1,0 +1,44 @@
+# E5-joint gradient probe: picks beta so that CE and rel pull equally hard on the LoRA.
+# For every micro-batch it logs |grad CE|, |grad rel| (w.r.t. the LoRA weights) and their
+# cosine to grad_probe.jsonl. beta here only sets the training direction during the
+# probe; the logged gradients are computed per loss and do not depend on it.
+# Run as a 200-step smoke over the full training pool (--docs covers every document, so
+# all five datasets are drawn with the normal sampling weights):
+#   python -m ie643.distill smoke --config configs/e5_joint_probe.yaml --docs 18770 --steps 200
+#   -> runs/e5-smoke/short/seed643/grad_probe.jsonl
+# Balanced beta = median of |grad CE| / |grad rel| = 0.037 (see e5_joint_beta0037.yaml).
+exp: e5
+variant: probe
+student: Qwen/Qwen2.5-VL-3B-Instruct
+teacher: Qwen/Qwen3-VL-32B-Instruct
+student_device: cuda:0
+teacher_device: cuda:1
+kd:
+  enabled: false
+rel:
+  enabled: true
+  beta: 0.01
+  probe_every: 1
+  relation_heads: 32
+  student_layer: 36
+  teacher_layer: 48
+  pre_rope: true
+  mask_sinks: true
+  sink_ratio: 10.0
+  causal: true
+  image_columns: true
+  resize: B
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+optim:
+  lr: 1.0e-4
+  epochs: 2
+  micro_batch: 1
+  grad_accum: 32
+  seed: 643
+data:
+  dataset_weighting: true
+  weight_power: 0.5
+  max_length: 4096

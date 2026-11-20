@@ -1,0 +1,180 @@
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,array,xcolor,enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\setlist{itemsep=2pt,topsep=3pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{E5 (MiniLMv2 Q/K/V Relations): Results at $\beta = 1$ and Gradient Balance}
+\author{IE643 --- Knowledge Distillation of VLM}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\section{Setup}
+
+E5 trains the Qwen2.5-VL-3B student with LoRA on the teacher's hard labels (\code{teacher\_raw}), exactly like SFT, and adds a MiniLMv2 relation loss. That loss matches the student's Q/K/V self-relations at layer 36 (its last layer) to the Qwen3-VL-32B teacher's at layer 48. Soft labels are not used (\code{kd.enabled: false}). The total loss is
+\[
+  \mathcal{L} = \mathrm{CE} + \beta \cdot \mathrm{rel}, \qquad \beta = 1.0 .
+\]
+So E5 differs from SFT only by the relation term. Everything else is the same as SFT: LoRA r 16 / $\alpha$ 32, lr $10^{-4}$ cosine, AdamW, gradient clipping 1.0, 2 epochs, seed 643, dataset sampling $\propto n^{0.5}$, effective batch 32. The one difference is how the batch is formed: micro-batch $1 \times 32$ accumulation steps for E5, $4 \times 8$ for SFT. Config: \code{configs/e5\_minilm.yaml}; run: \code{runs/e5/main/seed643} (Slurm job 65632, 2 GPUs).
+
+\section{Training}
+
+\begin{center}
+\begin{tabular}{rrrrl}
+\toprule
+Step & CE & rel & lr & \\
+\midrule
+1 & 0.075 & 17.86 & $5.7\times10^{-6}$ & warm-up \\
+40 & 0.061 & 7.86 & $1.0\times10^{-4}$ & \\
+240 & 0.020 & 4.15 & $9.2\times10^{-5}$ & \\
+580 & 0.017 & 4.21 & $5.3\times10^{-5}$ & end of epoch 0 \\
+1000 & 0.043 & 4.97 & $5.7\times10^{-6}$ & \\
+1160 & 0.058 & 5.14 & $3.7\times10^{-8}$ & last logged step \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+  \item rel fell from about 18 to about 4--5 within the first $\sim$240 steps and then stayed flat. CE stayed between 0.01 and 0.24 throughout. Logged values are from the last micro-batch, not averages.
+  \item About 620--650 tok/s, peak memory 47.6 GB on the student GPU, one row dropped for exceeding 4{,}096 tokens.
+  \item Sanity check (32 fixed training documents, exact string match with the teacher): parse rate 1.00 at both epochs; exact match 0.22 after epoch 0 and 0.19 after epoch 1 (7 vs.\ 6 of 32).
+\end{itemize}
+
+\section{Results}
+
+Scorer v3, micro and macro F1 (\%). In-domain test: 4{,}240 documents. Unseen: DocILE, MC-OCR and ReceiptBench (5{,}149 documents). E5 failed to return a prediction for 2 test and 7 unseen documents. These were left out of scoring.
+
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & In-domain micro & Macro & Real & Templ. & Unseen micro & Unseen macro \\
+\midrule
+SFT & 96.22 & 92.26 & 87.65 & 97.60 & 74.28 & 80.54 \\
+KD (final) & 96.33 & 92.67 & 88.32 & 97.63 & 75.05 & 81.06 \\
+E5, $\beta = 1$ & 94.29 & 90.30 & 85.38 & 95.72 & 60.45 & 68.51 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Paired bootstrap on the test set (E5 minus baseline, 1{,}000 resamples)}
+
+\begin{center}
+\begin{tabular}{lrrl}
+\toprule
+Comparison & Baseline F1 & E5 F1 & Difference [95\% CI] \\
+\midrule
+E5 $-$ KD & 96.33 & 94.29 & $-2.09$ \ [$-2.33$, $-1.85$] \\
+E5 $-$ SFT & 96.22 & 94.29 & $-1.98$ \ [$-2.24$, $-1.73$] \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Both intervals are entirely below zero, so the drop is significant.
+
+\subsection*{Per dataset, in-domain test (F1 \%)}
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Dataset & SFT & KD & E5 & E5 $-$ SFT \\
+\midrule
+CORD-v2 & 90.66 & 91.75 & 89.39 & $-1.27$ \\
+FATURA & 98.06 & 98.08 & 95.43 & $-2.63$ \\
+invoices-v2 & 77.57 & 78.67 & 74.37 & $-3.20$ \\
+SROIE & 98.10 & 97.93 & 96.14 & $-1.96$ \\
+synthetic receipts & 96.90 & 96.94 & 96.17 & $-0.73$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{E5 on unseen documents}
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Dataset & Fields & P & R & F1 \\
+\midrule
+DocILE & 22{,}906 & 54.49 & 48.94 & 51.57 \\
+MC-OCR & 5{,}117 & 80.61 & 80.61 & 80.61 \\
+ReceiptBench & 6{,}971 & 73.36 & 73.36 & 73.36 \\
+\bottomrule
+\end{tabular}
+\hspace{1.5em}
+\begin{tabular}{lrr}
+\toprule
+Field & Fields & F1 \\
+\midrule
+line\_items & 7{,}294 & 32.01 \\
+vendor & 4{,}702 & 78.26 \\
+total & 4{,}621 & 70.63 \\
+date & 4{,}416 & 63.90 \\
+vendor\_address & 2{,}730 & 61.98 \\
+currency & 2{,}716 & 77.91 \\
+po\_number & 864 & 18.63 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+E5 is about 14 points of micro F1 below SFT on unseen documents, and below the zero-shot student (69.85). The losses are concentrated in DocILE and in \code{line\_items} (recall 26.9\%). A paired bootstrap on the unseen set needs E5's predictions merged with the SFT and KD runs' manifests. That step is still to do.
+
+\section{Why the relation term hurt: gradient balance}
+
+\subsection*{Gradient probe}
+
+To see how much each loss drives training, a 200-step probe was run (\code{configs/e5\_probe.yaml}, $\beta = 0.01$). It used one document per step, drawn from all five datasets with the normal weighting. For each document, the gradients of CE and of rel with respect to all trainable LoRA weights were computed separately. Their norms and the cosine between them were then logged (\code{grad\_probe.jsonl}).
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Quantity (200 documents) & Value \\
+\midrule
+median $\lVert g_{\mathrm{CE}} \rVert$ & 0.296 \\
+median $\lVert g_{\mathrm{rel}} \rVert$ & 8.15 \\
+median $\lVert g_{\mathrm{CE}} \rVert / \lVert g_{\mathrm{rel}} \rVert$ & 0.037 \ (p25 0.025, p75 0.046) \\
+median cosine$(g_{\mathrm{CE}}, g_{\mathrm{rel}})$ & 0.000 \ (negative in 101/200) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+  \item At $\beta = 1$ the relation gradient is about \textbf{27$\times$} larger than the CE gradient ($8.15 / 0.296$).
+  \item The two gradients are \textbf{orthogonal}. Matching the teacher's Q/K/V relations neither helps nor directly opposes the extraction task.
+  \item The ratio stayed stable while rel fell from about 17 to about 10 during the probe ($\lVert g_{\mathrm{rel}} \rVert$ stayed around 8), so it is not an artifact of the first few steps.
+  \item Balancing by loss value would give $\beta \approx \mathrm{CE}/\mathrm{rel} \approx 0.03/4.5 \approx 0.007$. That is about 5$\times$ too small, because the losses differ by $\sim$100$\times$ in value but only by 27$\times$ in gradient.
+\end{itemize}
+
+\subsection*{What gradient clipping does}
+
+After each optimizer step's 32 micro-batches, all LoRA gradients are treated as one vector. If its length (L2 norm) exceeds \code{grad\_clip} = 1.0, the whole vector is scaled down to length 1.0. Its direction is unchanged.
+
+With $\lVert g_{\mathrm{CE}} \rVert \approx 0.30$, $\lVert g_{\mathrm{rel}} \rVert \approx 8.15$ and the two orthogonal, the combined gradient at $\beta = 1$ has length
+\[
+  \sqrt{0.30^2 + 8.15^2} \approx 8.16 > 1,
+\]
+so it is scaled down by $8.16\times$. The CE part shrinks from 0.30 to $0.30 / 8.16 \approx 0.04$. In SFT the gradient is about 0.30 long, so it is not clipped. Clipping therefore makes the CE part about 8$\times$ smaller than in SFT.
+
+\subsection*{Why clipping alone is not the cause: Adam}
+
+The optimizer is AdamW. Adam divides each weight's gradient by a running estimate of that gradient's typical size. Multiplying the whole gradient by a constant, which is all clipping does, therefore barely changes the step: each weight moves by roughly the learning rate either way. The 8$\times$ shrink from clipping is largely undone by Adam.
+
+What matters is the \textbf{mix} inside the gradient. Adam gives each weight a step of roughly fixed size, and the direction comes from the combined gradient:
+\begin{itemize}
+  \item In SFT the gradient is 100\% CE, so every step moves towards ``predict the teacher's answer better''.
+  \item In E5 at $\beta = 1$ the gradient is about 27 parts relation to 1 part CE. Adam's normalisation is set mostly by the large relation gradient, so only about $1/27$ of each step moves in the CE direction.
+  \item The rest of each step follows the relation direction. Since the cosine is $\approx 0$, that direction is unrelated to the task.
+\end{itemize}
+
+Every update has roughly the same total size. At $\beta = 1$, about 96\% of it went into matching the teacher's attention relations and about 4\% into learning the extraction task. This is consistent with the in-domain drop of about 2 points and the much larger drop on unseen documents.
+
+\subsection*{Next run}
+
+Setting $\beta$ to the measured median ratio, $\beta = 0.037$, makes the two gradients the same size ($\approx 0.30$ each), so each step is split roughly evenly. That run (\code{configs/e5\_beta0037.yaml}, \code{runs/e5/beta0037/seed643}) tests whether relation distillation helps once it is balanced against the task loss. Because $\beta$ is fixed in advance from the probe rather than chosen on the test set, the comparison with SFT and KD stays unbiased.
+
+\end{document}

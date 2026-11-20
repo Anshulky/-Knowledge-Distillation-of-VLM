@@ -26,7 +26,7 @@ class KDConfig:
 
 @dataclass
 class RelConfig:
-    """E5 MiniLMv2 relations. Layer numbers are 1-based (36 = the last student layer)."""
+    """E5 MiniLMv2 relations (E5-joint, and stage 1 of E5-TS). Layer numbers are 1-based (36 = the last student layer)."""
 
     enabled: bool = False
     beta: float = 1.0
@@ -38,6 +38,7 @@ class RelConfig:
     sink_ratio: float = 10.0
     causal: bool = True
     image_columns: bool = True  # False -> S = output tokens only (E5-O)
+    probe_every: int = 0  # >0: every N micro-batches log |grad ce|, |grad rel|, cosine to grad_probe.jsonl
     resize: str = "B"  # B: teacher image * 8/7; A: packed image + resample columns
     student_heads: int = 16
     student_kv_heads: int = 2

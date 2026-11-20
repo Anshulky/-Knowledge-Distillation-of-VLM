@@ -54,7 +54,7 @@ def load_student(model_id: str, cfg, device: str):
     model = get_peft_model(model, peft_cfg)
     if cfg.rel.enabled:
         # Relation hooks need the Q/K/V activations to carry grad. Checkpointing drops
-        # those tensors, so E5 trades it for micro-batch 1 (see configs/e5_minilm.yaml).
+        # those tensors, so E5 trades it for micro-batch 1 (see configs/e5_joint_beta1.yaml).
         model.gradient_checkpointing_disable()
     else:
         model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})

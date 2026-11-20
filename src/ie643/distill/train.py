@@ -89,6 +89,8 @@ def _model_kwargs(batch: dict, prefix: str = "") -> dict:
     keys = {prefix + k for k in _STUDENT_KEYS}
     kw = {}
     for key, value in batch.items():
+        if not prefix and key.startswith("teacher_"):
+            continue
         if key in keys or key.startswith(prefix + "mm_") or key.endswith("token_type_ids") and key.startswith(prefix):
             name = key[len(prefix) :] if prefix and key.startswith(prefix) else key
             kw[name] = value
@@ -131,6 +133,7 @@ def _relation(cfg: TrainConfig, student_cap, teacher_cap, batch, s_image: int, t
         t_prompt = int(batch["teacher_n_prompt"][b])
         s_cols, s_img = _span(batch["input_ids"][b], s_image, n_prompt, n_out, cfg.rel.image_columns)
         t_cols, t_img = _span(batch["teacher_input_ids"][b], t_image, t_prompt, n_out, cfg.rel.image_columns)
+        t_cols, t_img = t_cols.to(device), t_img.to(device)
         s_acts = [a[b] for a in student_cap.acts]
         t_acts = [a[b].to(device) for a in teacher_cap.acts]
         s_sink = _sink_vector(s_acts, s_img, int(s_cols.shape[0]), int(s_img.shape[0]) if cfg.rel.image_columns else 0, cfg.rel.sink_ratio, cfg.rel.mask_sinks)
@@ -189,6 +192,31 @@ def _prune(run_dir: Path, keep: int) -> None:
         for child in old.glob("*"):
             child.unlink()
         old.rmdir()
+
+
+def _grad_probe(model, ce: torch.Tensor, rel: torch.Tensor, step: int, path: Path) -> None:
+    """Log the norms of d(ce)/dθ and d(rel)/dθ over trainable weights, and their cosine.
+
+    Equal influence in ``ce + beta * rel`` needs beta = |g_ce| / |g_rel|.
+    """
+    params = [p for p in model.parameters() if p.requires_grad]
+    g_ce = torch.autograd.grad(ce, params, retain_graph=True, allow_unused=True)
+    g_rel = torch.autograd.grad(rel, params, retain_graph=True, allow_unused=True)
+
+    def flat(grads):
+        return torch.cat([(g if g is not None else torch.zeros_like(p)).float().flatten() for g, p in zip(grads, params)])
+
+    a, b = flat(g_ce), flat(g_rel)
+    row = {
+        "step": step,
+        "ce": float(ce.detach()),
+        "rel": float(rel.detach()),
+        "g_ce": float(a.norm()),
+        "g_rel": float(b.norm()),
+        "cos": float(torch.nn.functional.cosine_similarity(a, b, dim=0)),
+    }
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row) + "\n")
 
 
 def train(
@@ -284,6 +312,7 @@ def train(
     window_start = time.time()
     last = {"ce": None, "kd": None, "rel": None, "loss": None}
     micro_in_accum = 0
+    micro_total = 0
     dtype = next(model.parameters()).dtype
 
     for epoch in range(start_epoch, cfg.optim.epochs):
@@ -337,6 +366,9 @@ def train(
                         except StopForward:
                             pass
                         rel = _relation(cfg, student_cap, teacher_cap, batch, s_image, t_image, device)
+                    if cfg.rel.enabled and cfg.rel.probe_every and micro_total % cfg.rel.probe_every == 0:
+                        _grad_probe(model, parts["ce"], rel, step, run_dir / "grad_probe.jsonl")
+                    micro_total += 1
                     loss = parts["loss"] + cfg.rel.beta * rel
                 (loss / cfg.optim.grad_accum).backward()
             finally:
