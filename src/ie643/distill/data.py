@@ -47,6 +47,24 @@ def configure_processor(processor):
         image_processor.min_pixels = MIN_PIXELS
     if hasattr(image_processor, "max_pixels"):
         image_processor.max_pixels = MAX_PIXELS
+    # Qwen3-VL reads its limits from size{shortest_edge, longest_edge} (default min 65,536 px),
+    # which upscales small packed images. Lower the floor; keep the ceiling above the teacher's
+    # largest image (MAX_PIXELS * (32/28)^2). No packed image is affected by either bound.
+    size = getattr(image_processor, "size", None)
+    if size is not None:
+        try:
+            shortest, longest = int(size["shortest_edge"]), int(size["longest_edge"])
+        except (KeyError, TypeError):
+            pass
+        else:
+            new = {
+                "shortest_edge": min(shortest, MIN_PIXELS),
+                "longest_edge": max(longest, MAX_PIXELS * 64 // 49 + 1),
+            }
+            try:
+                image_processor.size = type(size)(**new)
+            except TypeError:
+                image_processor.size = new
     return processor
 
 
@@ -298,6 +316,15 @@ class DistillDataset(torch.utils.data.Dataset):
             item["teacher_attention_mask"] = t_enc["attention_mask"][0]
             item["teacher_pixel_values"] = t_enc["pixel_values"]
             item["teacher_image_grid_thw"] = t_enc["image_grid_thw"].view(-1)
+            # Per-token side tensors (mm_token_type_ids, ...): Qwen3-VL needs them for M-RoPE.
+            t_len = int(t_enc["input_ids"].shape[1])
+            for key, val in t_enc.items():
+                if key in {"input_ids", "attention_mask", "pixel_values", "image_grid_thw"}:
+                    continue
+                if torch.is_tensor(val) and val.ndim == 2 and tuple(val.shape) == (1, t_len):
+                    item[f"teacher_{key}"] = val[0]
+            if "teacher_mm_token_type_ids" not in item:
+                item["teacher_mm_token_type_ids"] = (t_enc["input_ids"][0] == self.teacher_image_id).long()
             item["teacher_n_prompt"] = t_prompt
             item["teacher_grid_hw"] = torch.tensor([gh // merge, gw // merge])
         item["student_grid_hw"] = torch.tensor([int(rec["height"]) // PACK_FACTOR, int(rec["width"]) // PACK_FACTOR])

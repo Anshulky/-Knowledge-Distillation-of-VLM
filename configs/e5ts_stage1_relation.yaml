@@ -1,0 +1,42 @@
+# E5-TS stage 1 (proposed): relation pretraining, 2 epochs. MiniLMv2's first phase:
+# the student's last layer (36) learns the teacher's Q/K/V relations at layer 48 of 64.
+# beta = 1 makes the relation gradient ~27x the CE gradient, so the update is almost
+# entirely relation transfer; the small CE term keeps the output format intact.
+# Same settings as configs/e5_joint_beta1.yaml (our stage-1 adapter is that run).
+# Needs two GPUs: student on cuda:0, frozen 32B teacher on cuda:1.
+#   python -m ie643.distill train --config configs/e5ts_stage1_relation.yaml
+#   -> runs/e5ts/stage1/seed643/final, the --init-adapter of stage 2
+exp: e5ts
+variant: stage1
+student: Qwen/Qwen2.5-VL-3B-Instruct
+teacher: Qwen/Qwen3-VL-32B-Instruct
+student_device: cuda:0
+teacher_device: cuda:1
+kd:
+  enabled: false
+rel:
+  enabled: true
+  beta: 1.0
+  relation_heads: 32
+  student_layer: 36
+  teacher_layer: 48
+  pre_rope: true
+  mask_sinks: true
+  sink_ratio: 10.0
+  causal: true
+  image_columns: true
+  resize: B
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+optim:
+  lr: 1.0e-4
+  epochs: 2
+  micro_batch: 1
+  grad_accum: 32
+  seed: 643
+data:
+  dataset_weighting: true
+  weight_power: 0.5
+  max_length: 4096

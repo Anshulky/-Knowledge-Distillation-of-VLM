@@ -1,0 +1,43 @@
+# E5-joint, beta = 1 (not adopted). One objective: L = CE(teacher answer) + beta * rel,
+# where rel is the MiniLMv2 Q/K/V relation KL between student layer 36 (last) and
+# teacher layer 48 of 64. The relation gradient is ~27x the CE gradient here, so the
+# relation term dominates every update (see e5_joint_probe.yaml).
+#
+# Micro-batch 1 because the relation maps are large and gradient checkpointing is off
+# while the Q/K/V hooks need a gradient. Effective batch stays 32 (1 x 32).
+# Needs two GPUs: student on cuda:0, frozen 32B teacher on cuda:1.
+#   python -m ie643.distill train --config configs/e5_joint_beta1.yaml
+exp: e5
+variant: main
+student: Qwen/Qwen2.5-VL-3B-Instruct
+teacher: Qwen/Qwen3-VL-32B-Instruct
+student_device: cuda:0
+teacher_device: cuda:1
+kd:
+  enabled: false
+rel:
+  enabled: true
+  beta: 1.0
+  relation_heads: 32
+  student_layer: 36
+  teacher_layer: 48
+  pre_rope: true
+  mask_sinks: true
+  sink_ratio: 10.0
+  causal: true
+  image_columns: true
+  resize: B
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+optim:
+  lr: 1.0e-4
+  epochs: 2
+  micro_batch: 1
+  grad_accum: 32
+  seed: 643
+data:
+  dataset_weighting: true
+  weight_power: 0.5
+  max_length: 4096

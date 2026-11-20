@@ -1,0 +1,172 @@
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,array,xcolor,enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{needspace}
+\setlist{itemsep=2pt,topsep=3pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\lossone}{\[ \mathcal{L} = \mathrm{CE} + 1 \cdot \mathrm{rel} \]}
+\newcommand{\losssmall}{\[ \mathcal{L} = \mathrm{CE} + 0.037 \cdot \mathrm{rel} \]}
+
+\title{E5: MiniLMv2 Relation Distillation at $\beta = 1$ and $\beta = 0.037$}
+\author{IE643 --- Knowledge Distillation of VLM}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\section*{What E5 is}
+
+E5 trains the Qwen2.5-VL-3B student (LoRA) on the 32B teacher's answers, exactly like SFT. It adds one extra loss, rel, which makes the student's attention (Q/K/V relations) in its last layer (36) resemble the teacher's attention in layer 48:
+\[
+  \mathcal{L} = \mathrm{CE} + \beta \cdot \mathrm{rel}
+\]
+\begin{itemize}
+  \item CE: cross-entropy on the teacher's answer tokens (the same loss as SFT).
+  \item rel: the MiniLMv2 relation loss between student and teacher.
+  \item $\beta$: how strongly rel counts relative to CE.
+\end{itemize}
+With $\beta = 0$, E5 is exactly SFT. Everything else matches SFT: LoRA r 16 / $\alpha$ 32, AdamW, lr $10^{-4}$ cosine, 2 epochs, effective batch 32, seed 643, gradient clipping 1.0.
+
+All scores are scorer v3 F1 (\%). In-domain test: 4{,}240 documents. Unseen: DocILE, MC-OCR and ReceiptBench (5{,}149 documents). Real = SROIE, CORD and invoices-v2; Templ.\ = FATURA and synthetic receipts. Confidence intervals come from a paired bootstrap with 1{,}000 resamples.
+
+\section{E5 with $\beta = 1$}
+
+\subsection*{Overall}
+\lossone
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & In-domain micro & Macro & Real & Templ. & Unseen micro & Unseen macro \\
+\midrule
+SFT & 96.22 & 92.26 & 87.65 & 97.60 & 74.28 & 80.54 \\
+KD (final) & 96.33 & 92.67 & 88.32 & 97.63 & 75.05 & 81.06 \\
+E5, $\beta = 1$ & 94.29 & 90.30 & 85.38 & 95.72 & 60.45 & 68.51 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Per dataset}
+\lossone
+\begin{center}
+\begin{tabular}{llrrrr}
+\toprule
+Split & Dataset & SFT & KD & E5, $\beta = 1$ & E5 $-$ SFT \\
+\midrule
+In-domain & CORD-v2 & 90.66 & 91.75 & 89.39 & $-1.27$ \\
+ & FATURA & 98.06 & 98.08 & 95.43 & $-2.63$ \\
+ & invoices-v2 & 77.57 & 78.67 & 74.37 & $-3.20$ \\
+ & SROIE & 98.10 & 97.93 & 96.14 & $-1.96$ \\
+ & synthetic receipts & 96.90 & 96.94 & 96.17 & $-0.73$ \\
+\midrule
+Unseen & DocILE & 67.12 & 68.21 & 51.57 & $-15.55$ \\
+ & MC-OCR & 88.02 & 87.92 & 80.61 & $-7.41$ \\
+ & ReceiptBench & 86.49 & 87.04 & 73.36 & $-13.13$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\needspace{12\baselineskip}
+\subsection*{Paired bootstrap (E5 minus baseline, micro F1 points, 95\% CI)}
+\lossone
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Comparison & In-domain test & Unseen \\
+\midrule
+E5 $-$ SFT & $-1.98$ \ [$-2.24$, $-1.73$] & $-13.90$ \ [$-14.56$, $-13.19$] \\
+E5 $-$ KD & $-2.09$ \ [$-2.33$, $-1.85$] & $-14.67$ \ [$-15.34$, $-13.97$] \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+With $\beta = 1$, E5 is significantly worse than SFT and KD everywhere: about 2 points in-domain and about 14 points on unseen documents.
+
+\section{E5 with $\beta = 0.037$}
+
+\subsection*{What went wrong with $\beta = 1$}
+
+During training, the weights are changed in the direction given by the \emph{gradient} of the loss, not by the loss value itself. The gradient of $\mathcal{L}$ is the CE gradient plus $\beta$ times the rel gradient. With $\beta = 1$:
+\begin{itemize}
+  \item The rel gradient was about \textbf{27 times larger} than the CE gradient (typical sizes 8.15 against 0.30).
+  \item The optimizer (AdamW) moves each weight by roughly the same amount every step, whatever the gradient's size. So what matters is the \emph{mix} inside the gradient. At 27 to 1, about 96\% of every update went into copying the teacher's attention and only about 4\% into learning to extract the right answer.
+  \item The two gradients point in unrelated directions (their cosine is about 0). Copying the teacher's attention therefore did not help with the extraction task.
+\end{itemize}
+The student spent most of its training on a goal that does not improve extraction. This cost 2 points in-domain and 14 points on unseen documents.
+
+\subsection*{How $\beta = 0.037$ was obtained}
+
+The aim was to give both losses an equal say in every update, so $\beta$ should make $\beta \times$ (size of rel gradient) equal to (size of CE gradient).
+\begin{enumerate}
+  \item A short probe run took 200 training documents, drawn from all five datasets with the normal sampling weights.
+  \item For each document it measured separately how strongly CE and rel push the weights, that is, the length of each loss's gradient with respect to the LoRA weights.
+  \item Typical values were 0.296 for CE and 8.15 for rel. The middle value (median) of the ratio CE / rel over the 200 documents was \textbf{0.037}. The middle half of the documents lay between 0.025 and 0.046, so the value is stable.
+\end{enumerate}
+With $\beta = 0.037$ the rel gradient shrinks to $0.037 \times 8.15 \approx 0.30$, the same size as the CE gradient. Each update is then split roughly half and half between the two goals. The value was fixed from training documents before evaluation, not by trying several values on the test set, so the comparison stays fair.
+
+Balancing by the loss \emph{values} would have given a very different answer: CE $\approx 0.03$ against rel $\approx 4.5$ suggests $\beta \approx 0.007$, about 5 times too small. This is because the losses differ by about 100$\times$ in value but only by 27$\times$ in gradient.
+
+\subsection*{Overall}
+\losssmall
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & In-domain micro & Macro & Real & Templ. & Unseen micro & Unseen macro \\
+\midrule
+SFT & 96.22 & 92.26 & 87.65 & 97.60 & 74.28 & 80.54 \\
+KD (final) & 96.33 & 92.67 & 88.32 & 97.63 & 75.05 & 81.06 \\
+E5, $\beta = 1$ & 94.29 & 90.30 & 85.38 & 95.72 & 60.45 & 68.51 \\
+E5, $\beta = 0.037$ & 96.26 & 92.39 & 87.80 & 97.62 & 71.19 & 78.05 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Per dataset}
+\losssmall
+\begin{center}
+\begin{tabular}{llrrrrr}
+\toprule
+Split & Dataset & SFT & KD & E5, $\beta = 1$ & E5, $\beta = 0.037$ & $0.037$ $-$ SFT \\
+\midrule
+In-domain & CORD-v2 & 90.66 & 91.75 & 89.39 & 91.12 & $+0.46$ \\
+ & FATURA & 98.06 & 98.08 & 95.43 & 98.05 & $-0.01$ \\
+ & invoices-v2 & 77.57 & 78.67 & 74.37 & 77.71 & $+0.14$ \\
+ & SROIE & 98.10 & 97.93 & 96.14 & 98.10 & $0.00$ \\
+ & synthetic receipts & 96.90 & 96.94 & 96.17 & 96.97 & $+0.07$ \\
+\midrule
+Unseen & DocILE & 67.12 & 68.21 & 51.57 & 63.65 & $-3.47$ \\
+ & MC-OCR & 88.02 & 87.92 & 80.61 & 86.11 & $-1.91$ \\
+ & ReceiptBench & 86.49 & 87.04 & 73.36 & 84.37 & $-2.12$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\needspace{12\baselineskip}
+\subsection*{Paired bootstrap (E5 minus baseline, micro F1 points, 95\% CI)}
+\losssmall
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Comparison & In-domain test & Unseen \\
+\midrule
+E5 ($\beta = 0.037$) $-$ SFT & $+0.04$ \ [$-0.11$, $+0.18$] & $-3.16$ \ [$-3.88$, $-2.49$] \\
+E5 ($\beta = 0.037$) $-$ KD & $-0.07$ \ [$-0.20$, $+0.06$] & $-3.94$ \ [$-4.62$, $-3.24$] \\
+E5 ($\beta = 0.037$) $-$ E5 ($\beta = 1$) & $+2.02$ \ [$+1.77$, $+2.26$] & $+10.73$ \ [$+9.92$, $+11.56$] \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section*{Summary}
+
+\begin{itemize}
+  \item Balancing the gradients fixed most of the damage: $+2.0$ points in-domain and $+10.7$ points on unseen documents compared with $\beta = 1$.
+  \item In-domain, E5 with $\beta = 0.037$ is statistically tied with SFT and KD (both intervals include 0). The relation loss neither helps nor hurts there.
+  \item On unseen documents it is still significantly worse: about 3 points below SFT and 4 below KD, on all three unseen datasets. The penalty grows with the weight on rel: 0 at $\beta = 0$ (SFT), $-3.2$ at $\beta = 0.037$, and $-13.9$ at $\beta = 1$.
+  \item MiniLMv2 relation distillation from teacher layer 48 into the student's last layer therefore gave no benefit in this setup. Logit KD remains the best student.
+\end{itemize}
+
+\end{document}

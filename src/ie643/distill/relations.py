@@ -143,8 +143,9 @@ def _relation(rows: torch.Tensor, cols: torch.Tensor, col_mask: torch.Tensor) ->
 
 def _kl(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
     """KL(p || q) per row, mean over rows and relation heads. Zeros do not contribute."""
-    log_p = torch.where(p > 0, p.log(), torch.zeros_like(p))
-    log_q = torch.where(q > 0, q.log(), torch.zeros_like(q))
+    # clamp before log: log(0) inside torch.where still gives a NaN gradient (0 * inf)
+    log_p = torch.where(p > 0, p.clamp_min(1e-30).log(), torch.zeros_like(p))
+    log_q = torch.where(q > 0, q.clamp_min(1e-30).log(), torch.zeros_like(q))
     return (p * (log_p - log_q)).sum(-1).mean()
 
 
